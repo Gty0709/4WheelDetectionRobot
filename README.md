@@ -45,6 +45,12 @@
 
 ![图5：航点巡逻任务轨迹 path_20260615_001514](docs/screenshots/fig5-mission-trajectory.png)
 
+### 图 6 — AMCL 定位 + Nav2 航点巡逻（RViz + Gazebo）
+
+`launch_navigation_terminals.py` 一键启动后：左为 `navigation.rviz`（静态地图、膨胀代价层、全局/局部路径、绿点航点与已走轨迹）；右为 Gazebo 仿真（激光扇形、彩色柱体障碍与 MickRobot 实车运动）。地图来自 `map_20260614_185137`，航点来自同会话 `waypoints.yaml`。
+
+![图6：AMCL定位与Nav2航点巡逻 RViz+Gazebo](docs/screenshots/fig6-navigation-gazebo.png)
+
 <details>
 <summary>Mermaid 源码（本地预览可编辑，GitHub 对部分字符支持有限）</summary>
 
