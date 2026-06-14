@@ -1,0 +1,17 @@
+{
+    "cmake.sourceDirectory": "/home/li_yvting/ros2_ws/A/mickrobot_description",
+    "ROS2.distro": "humble",
+    "python.autoComplete.extraPaths": [
+        "/home/gty/ros2ws/paint_robot/install/livox_ros_driver2/local/lib/python3.10/dist-packages",
+        "/home/gty/ros2ws/paint_robot/install/lidartag_msgs/local/lib/python3.10/dist-packages",
+        "/home/gty/ros2ws/paint_robot/install/ifcmap_pkg/lib/python3.10/site-packages",
+        "/home/gty/ros2ws/paint_robot/install/hikvision_interface/local/lib/python3.10/dist-packages",
+        "/home/gty/ros2ws/paint_robot/install/fast_livo_pkg/local/lib/python3.10/dist-packages",
+        "/home/gty/ros2ws/paint_robot/install/apriltag_msgs/local/lib/python3.10/dist-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ],
+    "python-envs.defaultEnvManager": "ms-python.python:conda",
+    "python-envs.defaultPackageManager": "ms-python.python:conda",
+    "python-envs.pythonProjects": []
+}

@@ -1,0 +1,92 @@
+# DINO-only training (baseline: result/20260523_232206/yolo26m_baseline, val mAP50~0.93)
+imgsz: 512
+epochs: 250
+batch: 48
+patience: 0
+workers: 4
+
+fusion:
+  stage1_epochs: 80
+  stage1_dino_tune_mode: neck_only
+  dino_tune_mode: default
+  transfer_box_at_stage2: true
+  dfl: 1.5
+  lr0: 0.001
+  lr_dino_blocks: 0.000005
+  lr_dino_norm: 0.00001
+  mosaic: 0.5
+  mixup: 0.0
+  close_mosaic: 10
+  optimizer: auto
+  weight_decay: 0.0005
+  warmup_epochs: 3
+  grad_clip: 10.0
+  cos_lr: true
+
+baseline:
+  model: yolo26m.pt
+  device: "0"
+  lr0: 0.001
+  mosaic: 0.5
+  close_mosaic: 10
+
+sim:
+  device: "0"
+  imgsz: 512
+  epochs: 150
+  batch: 90
+  workers: 8
+  patience: 0
+
+# Track A: gated DINO + full pretrained YOLO26m (same recipe as baseline)
+enhanced:
+  epochs: 150
+  batch: 32
+  dfl: 1.5
+  optimizer: auto
+  weight_decay: 0.0005
+  warmup_epochs: 3
+  cos_lr: false
+  dino_arch: vitb16
+
+# Track A v2: resume from peak + sharpen cls + cosine lr + light DINO tune
+enhanced_v2:
+  epochs: 80
+  batch: 32
+  resume_ckpt: result/20260611_redesign/dino_enhanced_yolo26/weights/best.pt
+  lr0: 0.00005
+  lrf: 0.1
+  cls: 1.5
+  box: 7.5
+  dfl: 1.5
+  optimizer: AdamW
+  weight_decay: 0.0005
+  warmup_epochs: 3
+  cos_lr: true
+  mosaic: 0.3
+  close_mosaic: 20
+  copy_paste: 0.3
+  mixup: 0.0
+  dino_tune_mode: last2
+  lr_dino_blocks: 0.000001
+  lr_dino_norm: 0.000002
+  dino_arch: vitb16
+
+# Track B: DINOv3 SFP backbone + YOLO26m pretrained neck/head
+sfp:
+  epochs: 150
+  stage1_epochs: 50
+  stage1_dino_tune_mode: frozen
+  dino_tune_mode: last4
+  batch: 24
+  dfl: 1.5
+  lr0: 0.001
+  lr_dino_blocks: 0.000005
+  lr_dino_norm: 0.00001
+  mosaic: 0.5
+  close_mosaic: 10
+  optimizer: auto
+  weight_decay: 0.0005
+  warmup_epochs: 3
+  cos_lr: true
+  dino_arch: vitb16

@@ -1,0 +1,421 @@
+<sdf version='1.7'>
+  <world name='small_house'>
+
+    <!-- gz-sim system plugins (与nav.world保持一致) -->
+    <plugin filename="gz-sim-physics-system"        name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-user-commands-system"  name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-sensors-system"        name="gz::sim::systems::Sensors">
+      <render_engine>ogre</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-imu-system"    name="gz::sim::systems::Imu"/>
+    <plugin filename="gz-sim-navsat-system" name="gz::sim::systems::NavSat"/>
+
+    <!-- 太阳光 -->
+    <light name='sun' type='directional'>
+      <cast_shadows>0</cast_shadows>
+      <pose>0 0 10 0 -0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+      <spot>
+        <inner_angle>0</inner_angle>
+        <outer_angle>0</outer_angle>
+        <falloff>0</falloff>
+      </spot>
+    </light>
+
+    <!-- 地面 -->
+    <model name='ground_plane'>
+      <static>1</static>
+      <link name='link'>
+        <collision name='collision'>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+          <surface>
+            <contact>
+              <collide_bitmask>65535</collide_bitmask>
+              <ode/>
+            </contact>
+            <friction>
+              <ode>
+                <mu>100</mu>
+                <mu2>50</mu2>
+              </ode>
+              <torsional><ode/></torsional>
+            </friction>
+            <bounce/>
+          </surface>
+        </collision>
+        <visual name='visual'>
+          <cast_shadows>0</cast_shadows>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Grey</name>
+            </script>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <gravity>0 0 -9.8</gravity>
+    <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
+    <atmosphere type='adiabatic'/>
+    <physics type='ode'>
+      <max_step_size>0.002</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <real_time_update_rate>500</real_time_update_rate>
+    </physics>
+    <scene>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <background>0.7 0.7 0.7 1</background>
+      <shadows>0</shadows>
+    </scene>
+    <audio><device>default</device></audio>
+    <wind/>
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <latitude_deg>0</latitude_deg>
+      <longitude_deg>0</longitude_deg>
+      <elevation>0</elevation>
+      <heading_deg>0</heading_deg>
+    </spherical_coordinates>
+
+    <!--
+      small_house 小型室内世界  10m × 8m
+      ──────────────────────────────────────────────────
+      布局（俯视，单位 m）：
+
+        (-5,4)_________________________(5,4)
+          |                           |
+          |   北区（开阔，主活动区）    |
+          |   [obs1]          [obs2]  |
+          |_____(4m内墙)____(1,0)     |
+                           ↑ 开口 4m  |
+          |   南区（通过东侧开口连通）  |
+          |   [obs3]          [obs4]  |
+        (-5,-4)________________________(5,-4)
+
+      - 外墙：10m×8m，墙厚 0.15m，高 2.5m
+      - 内墙：水平，x∈[-5,-1] at y=0，长4m；东侧留4m宽开口
+      - 障碍物：4个，分布在四个象限，高0.5m
+      - 机器人出生点：(0, 0, 0.1)，位于内墙开口中央
+      ──────────────────────────────────────────────────
+      对齐 mickrobot_ugv 参数：
+        激光 min=0.12m, max=12.0m（可看穿整个房间）
+        底盘 0.20m×0.12m，行走速度 0.2m/s
+    -->
+    <model name='small_house'>
+      <static>1</static>
+      <pose>0 0 0 0 -0 0</pose>
+
+      <!-- ===== 外墙 ===== -->
+
+      <!-- 南墙 y=-4，x∈[-5,5] -->
+      <link name='wall_south'>
+        <pose>0 -4 1.25 0 -0 0</pose>
+        <collision name='Wall_south_Collision'>
+          <geometry><box><size>10.15 0.15 2.5</size></box></geometry>
+          <pose>0 0 0 0 -0 0</pose>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact><ode/></contact>
+            <bounce/>
+            <friction><torsional><ode/></torsional><ode/></friction>
+          </surface>
+        </collision>
+        <visual name='Wall_south_Visual'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry><box><size>10.15 0.15 2.5</size></box></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Grey</name>
+            </script>
+            <ambient>1 1 1 1</ambient>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+
+      <!-- 北墙 y=4，x∈[-5,5] -->
+      <link name='wall_north'>
+        <pose>0 4 1.25 0 -0 0</pose>
+        <collision name='Wall_north_Collision'>
+          <geometry><box><size>10.15 0.15 2.5</size></box></geometry>
+          <pose>0 0 0 0 -0 0</pose>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact><ode/></contact>
+            <bounce/>
+            <friction><torsional><ode/></torsional><ode/></friction>
+          </surface>
+        </collision>
+        <visual name='Wall_north_Visual'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry><box><size>10.15 0.15 2.5</size></box></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Grey</name>
+            </script>
+            <ambient>1 1 1 1</ambient>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+
+      <!-- 西墙 x=-5，y∈[-4,4] -->
+      <link name='wall_west'>
+        <pose>-5 0 1.25 0 -0 0</pose>
+        <collision name='Wall_west_Collision'>
+          <geometry><box><size>0.15 8.15 2.5</size></box></geometry>
+          <pose>0 0 0 0 -0 0</pose>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact><ode/></contact>
+            <bounce/>
+            <friction><torsional><ode/></torsional><ode/></friction>
+          </surface>
+        </collision>
+        <visual name='Wall_west_Visual'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry><box><size>0.15 8.15 2.5</size></box></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Grey</name>
+            </script>
+            <ambient>1 1 1 1</ambient>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+
+      <!-- 东墙 x=5，y∈[-4,4] -->
+      <link name='wall_east'>
+        <pose>5 0 1.25 0 -0 0</pose>
+        <collision name='Wall_east_Collision'>
+          <geometry><box><size>0.15 8.15 2.5</size></box></geometry>
+          <pose>0 0 0 0 -0 0</pose>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact><ode/></contact>
+            <bounce/>
+            <friction><torsional><ode/></torsional><ode/></friction>
+          </surface>
+        </collision>
+        <visual name='Wall_east_Visual'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry><box><size>0.15 8.15 2.5</size></box></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Grey</name>
+            </script>
+            <ambient>1 1 1 1</ambient>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+
+      <!-- ===== 内墙 ===== -->
+      <!-- 水平内墙：x∈[-5,-1] at y=0，长4m
+           中心 (-3,0)；东侧 x∈[-1,5] 留 6m 宽开口连通南北区 -->
+      <link name='wall_inner'>
+        <pose>-3 0 1.25 0 -0 0</pose>
+        <collision name='Wall_inner_Collision'>
+          <geometry><box><size>4.15 0.15 2.5</size></box></geometry>
+          <pose>0 0 0 0 -0 0</pose>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact><ode/></contact>
+            <bounce/>
+            <friction><torsional><ode/></torsional><ode/></friction>
+          </surface>
+        </collision>
+        <visual name='Wall_inner_Visual'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry><box><size>4.15 0.15 2.5</size></box></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Grey</name>
+            </script>
+            <ambient>0.9 0.9 0.9 1</ambient>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+
+      <!-- ===== 障碍物（高0.5m，底面与地面齐平）===== -->
+
+      <!-- obs1：西北象限 -->
+      <link name='obs_box_nw'>
+        <pose>-3 2.5 0.25 0 -0 0</pose>
+        <collision name='obs_box_nw_Collision'>
+          <geometry><box><size>0.5 0.5 0.5</size></box></geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact><ode/></contact>
+            <bounce/>
+            <friction><torsional><ode/></torsional><ode/></friction>
+          </surface>
+        </collision>
+        <visual name='obs_box_nw_Visual'>
+          <geometry><box><size>0.5 0.5 0.5</size></box></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Red</name>
+            </script>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+
+      <!-- obs2：东北象限（圆柱，便于激光特征匹配） -->
+      <link name='obs_cyl_ne'>
+        <pose>3 2.5 0.25 0 -0 0</pose>
+        <collision name='obs_cyl_ne_Collision'>
+          <geometry><cylinder><radius>0.25</radius><length>0.5</length></cylinder></geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact><ode/></contact>
+            <bounce/>
+            <friction><torsional><ode/></torsional><ode/></friction>
+          </surface>
+        </collision>
+        <visual name='obs_cyl_ne_Visual'>
+          <geometry><cylinder><radius>0.25</radius><length>0.5</length></cylinder></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Blue</name>
+            </script>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+
+      <!-- obs3：西南象限 -->
+      <link name='obs_box_sw'>
+        <pose>-3 -2.5 0.25 0 -0 0</pose>
+        <collision name='obs_box_sw_Collision'>
+          <geometry><box><size>0.5 0.5 0.5</size></box></geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact><ode/></contact>
+            <bounce/>
+            <friction><torsional><ode/></torsional><ode/></friction>
+          </surface>
+        </collision>
+        <visual name='obs_box_sw_Visual'>
+          <geometry><box><size>0.5 0.5 0.5</size></box></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Green</name>
+            </script>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+
+      <!-- obs4：东南象限（圆柱） -->
+      <link name='obs_cyl_se'>
+        <pose>3 -2.5 0.25 0 -0 0</pose>
+        <collision name='obs_cyl_se_Collision'>
+          <geometry><cylinder><radius>0.25</radius><length>0.5</length></cylinder></geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact><ode/></contact>
+            <bounce/>
+            <friction><torsional><ode/></torsional><ode/></friction>
+          </surface>
+        </collision>
+        <visual name='obs_cyl_se_Visual'>
+          <geometry><cylinder><radius>0.25</radius><length>0.5</length></cylinder></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Yellow</name>
+            </script>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+
+      <static>1</static>
+    </model>
+
+    <state world_name='small_house'>
+      <sim_time>0 0</sim_time>
+      <real_time>0 0</real_time>
+      <wall_time>0 0</wall_time>
+      <iterations>0</iterations>
+      <model name='ground_plane'>
+        <pose>0 0 0 0 -0 0</pose>
+        <scale>1 1 1</scale>
+        <link name='link'>
+          <pose>0 0 0 0 -0 0</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+      </model>
+      <model name='small_house'>
+        <pose>0 0 0 0 -0 0</pose>
+        <scale>1 1 1</scale>
+      </model>
+      <light name='sun'>
+        <pose>0 0 10 0 -0 0</pose>
+      </light>
+    </state>
+
+    <gui fullscreen='0'>
+      <camera name='user_camera'>
+        <!-- 俯视角度，便于观察整个小屋 -->
+        <pose>0 -12 18 0 0.9 1.5708</pose>
+        <view_controller>orbit</view_controller>
+        <projection_type>perspective</projection_type>
+      </camera>
+    </gui>
+
+  </world>
+</sdf>

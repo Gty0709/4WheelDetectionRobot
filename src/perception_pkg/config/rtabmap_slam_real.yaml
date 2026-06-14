@@ -1,0 +1,105 @@
+rtabmap:
+  ros__parameters:
+
+    # ══════════════════════════════════════════════════════════════════
+    # 订阅配置
+    # ══════════════════════════════════════════════════════════════════
+    subscribe_scan:    true     # 激光雷达（2D建图 + ICP局部配准）
+    subscribe_stereo:  true     # 双目相机（视觉回环检测）
+    subscribe_odom:    true     # 轮式里程计（ICP初始猜测）
+    subscribe_imu:     true     # 真实模式启用IMU（imu_link已在URDF定义）
+
+    approx_sync:              true
+    approx_sync_max_interval: 0.05   # 真实硬件时钟准，收紧同步窗口
+    sync_queue_size:          10
+    topic_queue_size:         10
+
+    # ══════════════════════════════════════════════════════════════════
+    # 坐标系（对齐模块A）
+    # ══════════════════════════════════════════════════════════════════
+    frame_id:      "base_footprint"
+    map_frame_id:  "map"
+    odom_frame_id: "odom"
+    publish_tf:    true             # 发布 map→odom TF
+
+    wait_for_transform: 0.2         # 真实时钟精准，缩短等待
+
+    # ══════════════════════════════════════════════════════════════════
+    # RTAB-Map 检测与更新触发
+    # ══════════════════════════════════════════════════════════════════
+    # 真实雷达10Hz，提高检测频率至2Hz（每0.5s做一次回环检测）
+    Rtabmap/DetectionRate: "2.0"
+    Rtabmap/TimeThr:       "0"
+    Rtabmap/MemoryThr:     "0"
+
+    RGBD/LinearUpdate:  "0.1"
+    RGBD/AngularUpdate: "0.1"
+
+    RGBD/OptimizeStrategy: "1"      # g2o 图优化
+
+    RGBD/ProximityBySpace:          "true"
+    RGBD/ProximityPathMaxNeighbors: "10"
+
+    # ══════════════════════════════════════════════════════════════════
+    # 栅格地图（使用激光雷达，5cm 分辨率）
+    # ══════════════════════════════════════════════════════════════════
+    Grid/FromDepth:           "false"
+    Grid/Sensor:              "0"     # ★ 0=激光雷达建格栅，1=深度相机，2=两者
+    Grid/CellSize:            "0.05"
+    Grid/RangeMin:            "0.12"
+    Grid/RangeMax:            "12.0"
+    Grid/3D:                  "false"
+    Grid/NormalsSegmentation: "false"
+    Grid/MaxGroundHeight:     "0.05"  # NormalsSegmentation=false 时必须非0，与CellSize一致
+    Grid/OccupancyThr:        "0.55"  # 与仿真对齐：降低占用阈值，旧墙格更易被清除
+    Grid/ProbHit:             "0.65"  # 与仿真对齐：降低单次命中置信度
+    Grid/ProbMiss:            "0.45"  # 与仿真对齐：加强穿越射线清除力度
+
+    RGBD/CreateOccupancyGrid: "true"  # 将格栅图存入数据库，避免纯激光模式下重建失败
+
+    # ══════════════════════════════════════════════════════════════════
+    # 配准策略：ICP 激光扫描匹配
+    # ══════════════════════════════════════════════════════════════════
+    Reg/Force3DoF: "true"
+    Reg/Strategy:  "1"
+
+    Icp/VoxelSize:                 "0.05"
+    Icp/MaxIterations:             "30"
+    Icp/Epsilon:                   "0.001"
+    # 真实硬件10Hz，帧间移动量小于仿真，收紧平移/旋转上限
+    Icp/MaxTranslation:            "0.2"    # 真实硬件帧率高，0.2m足够
+    Icp/MaxRotation:               "0.5236" # ≈30°（真实低速场景）
+    Icp/CorrespondenceRatio:       "0.2"
+    Icp/MaxCorrespondenceDistance: "0.15"
+    Icp/Strategy:                  "1"
+
+    # ══════════════════════════════════════════════════════════════════
+    # 视觉回环检测（双目，基线75.55mm，FOV60°，640×480）
+    # ══════════════════════════════════════════════════════════════════
+    Kp/DetectorStrategy: "6"
+    Kp/MaxFeatures:      "500"
+
+    Vis/MinInliers:     "15"
+    Vis/InlierDistance: "0.1"
+    Vis/EstimationType: "1"
+    Vis/FeatureType:    "6"
+
+    Stereo/MinDisparity: "1"
+    Stereo/MaxDisparity: "128"
+    Stereo/OpticalFlow:  "true"
+    Stereo/SSD:          "false"
+
+    # ══════════════════════════════════════════════════════════════════
+    # IMU（真实模式，imu_link 偏移量已在URDF中定义）
+    # ══════════════════════════════════════════════════════════════════
+    # Madgwick 滤波：典型MEMS IMU（陀螺仪噪声~0.01rad/s）
+    Imu/FilteringStrategy: "1"
+
+    # ══════════════════════════════════════════════════════════════════
+    # 内存管理（SLAM 建图模式）
+    # ══════════════════════════════════════════════════════════════════
+    Mem/IncrementalMemory:   "true"
+    Mem/RehearsalSimilarity: "0.45"
+    Mem/STMSize:             "10"
+
+    database_path: "~/.ros/rtabmap_real.db"

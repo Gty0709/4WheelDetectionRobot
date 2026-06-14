@@ -1,0 +1,83 @@
+rtabmap:
+  ros__parameters:
+
+    # ══════════════════════════════════════════════════════════════════
+    # 订阅配置
+    # WSL2 限制：stereo+scan 6路时间同步器无法正常建立，
+    # 仿真模式只用 scan（ICP建图）+ TF里程计，禁用 stereo 同步。
+    # ══════════════════════════════════════════════════════════════════
+    subscribe_scan:    true     # 激光雷达（2D建图 + ICP格栅）
+    subscribe_depth:   false    # ★ 必须显式关闭，否则默认进 RGB-D 模式
+    subscribe_rgb:     false    # ★ 必须显式关闭，否则进 rgb-only 模式
+    subscribe_stereo:  false    # 仿真禁用
+    subscribe_odom:    true     # ★ 订阅 icp_odometry 发布的 /rtabmap/icp_odom
+    subscribe_imu:     false
+
+    approx_sync:     true
+    sync_queue_size: 10
+    topic_queue_size: 10
+
+    # ══════════════════════════════════════════════════════════════════
+    # 坐标系（对齐模块A）
+    # ══════════════════════════════════════════════════════════════════
+    frame_id:      "base_footprint"
+    map_frame_id:  "map"
+    odom_frame_id: ""           # 使用 odom 话题（/odom 由 diff drive 提供，精度等同真值）
+    publish_tf:    true         # 发布 map→odom TF
+
+    wait_for_transform: 0.3
+
+    # ══════════════════════════════════════════════════════════════════
+    # RTAB-Map 检测与更新触发
+    # ══════════════════════════════════════════════════════════════════
+    Rtabmap/DetectionRate: "2.0"   # 2Hz回环检测（提高检测频率，减少漂移）
+    Rtabmap/TimeThr:       "0"
+    Rtabmap/MemoryThr:     "0"
+
+    RGBD/LinearUpdate:  "0.1"     # 平移0.1m添加新节点
+    RGBD/AngularUpdate: "0.1"     # 旋转0.1rad添加新节点
+    RGBD/OptimizeStrategy: "1"    # g2o后端图优化
+
+    RGBD/ProximityBySpace:          "true"
+    RGBD/ProximityPathMaxNeighbors: "20"
+    RGBD/CreateOccupancyGrid:       "true"  # ★ 将格栅图存入数据库，避免纯激光模式下重建失败
+
+    # ══════════════════════════════════════════════════════════════════
+    # 栅格地图（激光雷达，5cm 分辨率）
+    # ══════════════════════════════════════════════════════════════════
+    Grid/FromDepth:           "false"
+    Grid/Sensor:              "0"      # ★ 0=激光雷达建格栅，1=深度相机，2=两者
+    Grid/CellSize:            "0.05"   # 5cm/格
+    Grid/RangeMin:            "0.12"   # 对齐 /scan 最小量程
+    Grid/RangeMax:            "12.0"   # 对齐 /scan 最大量程
+    Grid/3D:                  "false"
+    Grid/NormalsSegmentation: "false"
+    Grid/MaxGroundHeight:     "0.05"   # 非法向量模式下必须非0，与CellSize一致
+    Grid/OccupancyThr:        "0.55"   # 调低占用阈值（默认0.65）：穿过后新视角miss射线更易将旧墙格清除
+    Grid/ProbHit:             "0.65"   # 单次命中置信度（默认0.7）：降低，避免旧墙格被过度强化
+    Grid/ProbMiss:            "0.45"   # 单次穿越清除力度（默认0.4）：提高，加速自由区域更新
+
+    # ══════════════════════════════════════════════════════════════════
+    # 配准策略：ICP 激光扫描匹配
+    # ══════════════════════════════════════════════════════════════════
+    Reg/Force3DoF: "true"     # 锁定2D平面运动
+    Reg/Strategy:  "1"        # ICP激光配准
+
+    Icp/VoxelSize:                 "0.05"
+    Icp/MaxIterations:             "30"
+    Icp/Epsilon:                   "0.001"
+    Icp/MaxTranslation:            "0.3"    # WSL2低帧率，帧间最多0.3m
+    Icp/MaxRotation:               "0.7854" # ≈45°
+    Icp/CorrespondenceRatio:       "0.15"   # 降低要求，长直墙特征少时更易匹配
+    Icp/MaxCorrespondenceDistance: "0.25"   # 扩大搜索范围，提高匹配鲁棒性
+    Icp/Strategy:                  "1"
+
+    # ══════════════════════════════════════════════════════════════════
+    # 内存管理（SLAM建图模式）
+    # ══════════════════════════════════════════════════════════════════
+    Mem/IncrementalMemory:   "true"
+    Mem/RehearsalSimilarity: "0.45"
+    Mem/STMSize:             "10"
+
+    # 数据库路径
+    database_path: "~/.ros/rtabmap_sim.db"

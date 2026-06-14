@@ -1,0 +1,40 @@
+# colcon / ROS 2
+build/
+install/
+log/
+
+# Python isolation (YOLO / NumPy 1.x)
+.venv-detection/
+.detection-python/
+
+# IDE / agent (local only)
+.cursor/
+.claude/
+
+# Runtime maps & rosbags (local sessions; not versioned)
+src/perception_pkg/maps/*
+!src/perception_pkg/maps/.gitkeep
+!src/perception_pkg/maps/README.md
+
+# Training data & run artifacts
+sim_dataset/
+src/detection_pkg/simresult/
+src/detection_pkg/runs/
+
+# Base / duplicate weights (re-download or regenerate)
+yolo26n.pt
+yolo26m.pt
+src/detection_pkg/yolo26m.pt
+src/detection_pkg/simmodel/last.pt
+
+# Logs & caches
+*.log
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+
+# OS
+.DS_Store
+Thumbs.db

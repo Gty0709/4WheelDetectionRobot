@@ -1,0 +1,22 @@
+# Ubuntu 22.04 + ROS 2 Humble（本机 Gazebo Classic + slam_toolbox + Nav2）
+# 以 # 开头的行为注释
+
+gazebo
+ros-humble-gazebo-ros-pkgs
+ros-humble-gazebo-plugins
+ros-humble-rviz2
+ros-humble-teleop-twist-keyboard
+ros-humble-xacro
+ros-humble-robot-state-publisher
+
+ros-humble-slam-toolbox
+ros-humble-topic-tools
+ros-humble-nav2-amcl
+ros-humble-nav2-map-server
+ros-humble-nav2-lifecycle-manager
+ros-humble-nav2-rviz-plugins
+ros-humble-tf2-tools
+ros-humble-navigation2
+ros-humble-nav2-bringup
+ros-humble-nav2-simple-commander
+python3-pillow

@@ -1,0 +1,85 @@
+slam_toolbox:
+  ros__parameters:
+
+    # ── 算法：Karto 2D 激光 SLAM（slam_toolbox async_slam_toolbox_node）──
+    # 流程：/scan 相关扫描匹配 + /odom(TF) 运动先验 → 位姿图 → Ceres 优化
+    #       → 发布 map→odom 修正 Gazebo diff_drive 累积误差；闭环 do_loop_closing
+
+    # Plugin params
+    solver_plugin: solver_plugins::CeresSolver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner: SCHUR_JACOBI
+    ceres_trust_strategy: LEVENBERG_MARQUARDT
+    ceres_dogleg_type: TRADITIONAL_DOGLEG
+    ceres_loss_function: None
+
+    # ROS Parameters
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_footprint
+    scan_topic: /scan
+    use_map_saver: true
+    mode: mapping #localization
+
+    # if you'd like to immediately start continuing a map at a given pose
+    # or at the dock, but they are mutually exclusive, if pose is given
+    # will use pose
+    #map_file_name: test_steve
+    # map_start_pose: [0.0, 0.0, 0.0]
+    #map_start_at_dock: true
+
+    debug_logging: false
+    throttle_scans: 1
+    transform_publish_period: 0.02 #if 0 never publishes odometry
+    map_update_interval: 2.0
+    resolution: 0.05
+    restamp_tf: true
+    min_laser_range: 0.2  # slam_toolbox 按首帧 scan 报 0.2 m 能力过滤；与 Gazebo min 0.15 兼容
+    max_laser_range: 12.0
+    minimum_time_interval: 0.1
+    transform_timeout: 0.5
+    tf_buffer_duration: 30.0
+    stack_size_to_use: 40000000 #// program needs a larger stack size to serialize large maps
+    enable_interactive_mode: true
+
+    # General Parameters
+    use_scan_matching: true
+    use_scan_barycenter: true
+    # 更密更新 + 更信激光（仿真 EKF 里程计仍可能有残余误差）
+    minimum_travel_distance: 0.2
+    minimum_travel_heading: 0.15
+    check_min_dist_and_heading_precisely: true
+    scan_buffer_size: 15
+    scan_buffer_maximum_scan_distance: 12.0
+    link_match_minimum_response_fine: 0.06
+    link_scan_maximum_distance: 2.5
+    loop_search_maximum_distance: 4.0
+    do_loop_closing: true
+    loop_match_minimum_chain_size: 10
+    loop_match_maximum_variance_coarse: 3.0
+    loop_match_minimum_response_coarse: 0.35
+    loop_match_minimum_response_fine: 0.45
+
+    # Correlation Parameters - Correlation Parameters
+    correlation_search_space_dimension: 1.0
+    correlation_search_space_resolution: 0.01
+    correlation_search_space_smear_deviation: 0.1 
+
+    # Correlation Parameters - Loop Closure Parameters
+    loop_search_space_dimension: 8.0
+    loop_search_space_resolution: 0.05
+    loop_search_space_smear_deviation: 0.03
+
+    # Scan Matcher Parameters
+    # 增大方差惩罚 → 扫描匹配可更大程度偏离错误 odom
+    distance_variance_penalty: 0.8
+    angle_variance_penalty: 1.5
+
+    fine_search_angle_offset: 0.00349
+    coarse_search_angle_offset: 0.698
+    coarse_angle_resolution: 0.0349
+    minimum_angle_penalty: 0.65
+    minimum_distance_penalty: 0.35
+    use_response_expansion: true
+    min_pass_through: 2
+    occupancy_threshold: 0.1

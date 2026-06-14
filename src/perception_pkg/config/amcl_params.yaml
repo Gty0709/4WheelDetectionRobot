@@ -1,0 +1,57 @@
+amcl:
+  ros__parameters:
+    # ── 基本框架 ──────────────────────────────────────────────────
+    base_frame_id:   "base_footprint"
+    odom_frame_id:   "odom"
+    global_frame_id: "map"
+    scan_topic:      "scan"
+
+    # ── 运动模型（差速驱动） ───────────────────────────────────────
+    robot_model_type: "nav2_amcl::DifferentialMotionModel"
+    # alpha 噪声（仿真理想差速：里程计由 diff_drive 发布，噪声宜小）
+    alpha1: 0.05   # 旋转指令产生的旋转噪声
+    alpha2: 0.05   # 平移指令产生的旋转噪声
+    alpha3: 0.05   # 平移指令产生的平移噪声
+    alpha4: 0.05   # 旋转指令产生的平移噪声
+
+    # ── 粒子滤波 ──────────────────────────────────────────────────
+    min_particles:     200    # 稳定跟踪时的最小粒子数
+    max_particles:     3000   # 初始定位/重定位时的最大粒子数
+    pf_err:            0.05   # KLD 采样误差上限
+    pf_z:              0.99   # KLD 置信度
+    resample_interval: 2      # 每 2 次更新重采样一次
+
+    # ── 激光传感器模型 ────────────────────────────────────────────
+    laser_model_type:          "likelihood_field"  # 效率高，对动态障碍鲁棒
+    laser_max_range:            12.0   # 与 URDF /scan 一致
+    laser_min_range:             0.12  # 与 URDF /scan 一致
+    max_beams:                  60     # 每 6° 采样一条，均匀覆盖 360°
+    laser_likelihood_max_dist:   2.0   # 最近障碍物搜索半径（m）
+    sigma_hit:   0.2   # 命中高斯噪声标准差
+    z_hit:       0.5   # 命中模型权重
+    z_rand:      0.5   # 随机噪声权重（likelihood_field 只用 hit+rand）
+    do_beamskip: false # 室内场景动态障碍少，不需跳过异常射线
+
+    # ── 更新触发阈值 ──────────────────────────────────────────────
+    update_min_d: 0.05   # 平移 5cm 触发更新（0.2m/s → 约 250ms/次）
+    update_min_a: 0.1    # 旋转 0.1rad ≈ 5.7° 触发更新
+
+    # ── TF 与时间 ─────────────────────────────────────────────────
+    transform_tolerance: 0.5   # 仿真 /clock 可能有延迟，宽松容忍
+    tf_broadcast:        true  # AMCL 发布 map→odom TF
+
+    # ── 初始位姿 ──────────────────────────────────────────────────
+    # 机器人固定从 Gazebo (0,0) 出发 = SLAM map frame (0,0)，自动初始化
+    set_initial_pose: true
+    initial_pose_x:   0.0
+    initial_pose_y:   0.0
+    initial_pose_z:   0.0
+    initial_pose_yaw: 0.0
+    initial_cov_xx:   0.25     # ±0.5m x 方向不确定度
+    initial_cov_yy:   0.25     # ±0.5m y 方向不确定度
+    initial_cov_aa:   0.0685   # ±15° 朝向不确定度
+
+    # ── 自适应重定位 ──────────────────────────────────────────────
+    save_pose_rate:      0.5   # 每 2s 保存位姿，重启后可快速恢复
+    recovery_alpha_slow: 0.001
+    recovery_alpha_fast: 0.1

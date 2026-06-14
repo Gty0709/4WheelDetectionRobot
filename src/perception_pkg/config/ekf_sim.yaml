@@ -1,0 +1,33 @@
+# 轮子里程计在 /wheel/odom；EKF 独占 /odom + odom→base TF
+# 相机 IMU（/camera/imu/data）安装位不同，不参与本 EKF，避免杠杆/姿态冲突
+ekf_filter_node:
+  ros__parameters:
+    frequency: 30.0
+    sensor_timeout: 0.2
+    two_d_mode: true
+    transform_time_offset: 0.0
+    transform_timeout: 0.0
+    print_diagnostics: false
+    debug: false
+    permit_corrected_publication: false
+    publish_acceleration: false
+    publish_tf: true
+
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_footprint
+    world_frame: odom
+
+    odom0: wheel/odom
+    # 仿真：直接融合 Gazebo diff_drive 位姿+速度，避免仅积分 vx+IMU 航向导致 /odom 与 /wheel/odom 背离震荡
+    odom0_config: [true,  true,  false,
+                   false, false, true,
+                   true,  false, false,
+                   false, false, true,
+                   false, false, false]
+    odom0_queue_size: 10
+    odom0_nodelay: true
+    odom0_differential: false
+    odom0_relative: false
+    odom0_pose_rejection_threshold: 8.0
+    odom0_twist_rejection_threshold: 2.0

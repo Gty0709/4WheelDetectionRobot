@@ -1,0 +1,299 @@
+material Clip/Clip01
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture clip_01.png
+        filtering trilinear
+      }
+    }
+  }
+}
+
+material Clip/Clip02
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture clip_02.png
+        filtering trilinear
+      }
+    }
+  }
+}
+
+material Clip/Clip03
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture clip_03.png
+        filtering trilinear
+      }
+    }
+  }
+}
+
+material Clip/Clip04
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture clip_04.png
+        filtering trilinear
+      }
+    }
+  }
+}
+
+material Clip/Clip05
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture clip_05.png
+        filtering trilinear
+      }
+    }
+  }
+}
+
+material Clip/Clip06
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture clip_06.png
+        filtering trilinear
+      }
+    }
+  }
+}
+
+material Clip/Clip07
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture clip_07.png
+        filtering trilinear
+      }
+    }
+  }
+}
+
+material Clip/Clip08
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture clip_08.png
+        filtering trilinear
+      }
+    }
+  }
+}
+
+material Clip/Clip09
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture clip_09.png
+        filtering trilinear
+      }
+    }
+  }
+}
+
+material Clip/Clip10
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture clip_10.png
+        filtering trilinear
+      }
+    }
+  }
+}
+
+material Clip/Clip11
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture clip_11.png
+        filtering trilinear
+      }
+    }
+  }
+}
+
+material Clip/Clip12
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture clip_12.png
+        filtering trilinear
+      }
+    }
+  }
+}
+
+material Clip/Clip13
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture clip_13.png
+        filtering trilinear
+      }
+    }
+  }
+}
+
+material Clip/Clip14
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture clip_14.png
+        filtering trilinear
+      }
+    }
+  }
+}
+
+material Clip/Clip15
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture clip_15.png
+        filtering trilinear
+      }
+    }
+  }
+}
+
+material Clip/Clip16
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture clip_16.png
+        filtering trilinear
+      }
+    }
+  }
+}
+
+material Clip/Clip17
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture clip_17.png
+        filtering trilinear
+      }
+    }
+  }
+}
+
+material Clip/Clip18
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture clip_18.png
+        filtering trilinear
+      }
+    }
+  }
+}
+
+material Clip/Clip19
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture clip_19.png
+        filtering trilinear
+      }
+    }
+  }
+}
+
+material Clip/Clip20
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture clip_20.png
+        filtering trilinear
+      }
+    }
+  }
+}

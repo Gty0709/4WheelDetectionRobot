@@ -1,0 +1,25 @@
+# Ground truth for paperclip decals in small_house.world (Gazebo Classic).
+# Positions are in the odom / Gazebo world frame at robot spawn.
+frame: odom
+footprint: [0.14, 0.14]
+clips:
+  - {id: 1, name: paperclip_01, x: -4.20, y: -2.80, z: 0.002, yaw: 0.20}
+  - {id: 2, name: paperclip_02, x: -3.00, y: -1.50, z: 0.002, yaw: -0.40}
+  - {id: 3, name: paperclip_03, x: -1.20, y: -3.20, z: 0.002, yaw: 0.80}
+  - {id: 4, name: paperclip_04, x: 0.80, y: -2.50, z: 0.002, yaw: -0.20}
+  - {id: 5, name: paperclip_05, x: 2.50, y: -3.00, z: 0.002, yaw: 0.50}
+  - {id: 6, name: paperclip_06, x: 4.00, y: -1.80, z: 0.002, yaw: -0.60}
+  - {id: 7, name: paperclip_07, x: -4.50, y: 0.50, z: 0.002, yaw: 0.30}
+  - {id: 8, name: paperclip_08, x: -2.20, y: 1.20, z: 0.002, yaw: -0.50}
+  - {id: 9, name: paperclip_09, x: -0.50, y: 0.80, z: 0.002, yaw: 0.70}
+  - {id: 10, name: paperclip_10, x: 1.50, y: 1.00, z: 0.002, yaw: -0.30}
+  - {id: 11, name: paperclip_11, x: 3.80, y: 0.60, z: 0.002, yaw: 0.40}
+  - {id: 12, name: paperclip_12, x: -3.80, y: 2.80, z: 0.002, yaw: -0.80}
+  - {id: 13, name: paperclip_13, x: -1.80, y: 3.20, z: 0.002, yaw: 0.20}
+  - {id: 14, name: paperclip_14, x: 0.20, y: 3.00, z: 0.002, yaw: -0.40}
+  - {id: 15, name: paperclip_15, x: 2.20, y: 2.50, z: 0.002, yaw: 0.60}
+  - {id: 16, name: paperclip_16, x: 4.20, y: 3.00, z: 0.002, yaw: -0.20}
+  - {id: 17, name: paperclip_17, x: -0.80, y: -0.50, z: 0.002, yaw: 1.00}
+  - {id: 18, name: paperclip_18, x: 1.00, y: -0.80, z: 0.002, yaw: -1.20}
+  - {id: 19, name: paperclip_19, x: 3.00, y: -0.50, z: 0.002, yaw: 0.90}
+  - {id: 20, name: paperclip_20, x: -2.50, y: 2.00, z: 0.002, yaw: 1.50}
