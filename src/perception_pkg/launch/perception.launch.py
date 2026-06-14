@@ -34,6 +34,8 @@ perception.launch.py — 模块B 感知节点总入口
 """
 
 import os
+
+import yaml
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction, TimerAction
 from launch.substitutions import LaunchConfiguration
@@ -41,7 +43,20 @@ from launch_ros.actions import Node, LifecycleNode
 from launch_ros.substitutions import FindPackageShare
 
 
-def _map_snapshot_node(pkg_share: str, use_sim_bool: bool, auto_save: bool):
+def _load_initial_pose(path: str) -> dict:
+    """JAZZY/HUMBLE: load AMCL initial pose from YAML (same format as humble)."""
+    if not path or not os.path.isfile(path):
+        return {}
+    with open(path, encoding='utf-8') as f:
+        data = yaml.safe_load(f) or {}
+    pose = {'z': 0.0}
+    if 'x' in data:
+        pose['x'] = float(data['x'])
+    if 'y' in data:
+        pose['y'] = float(data['y'])
+    if 'yaw' in data:
+        pose['yaw'] = float(data['yaw'])
+    return {'set_initial_pose': True, 'initial_pose': pose}
     if not auto_save:
         return None
     return Node(
@@ -66,6 +81,8 @@ def launch_nodes(context, *args, **kwargs):
     mode     = context.perform_substitution(LaunchConfiguration('mode'))
     map_yaml = context.perform_substitution(LaunchConfiguration('map_yaml_file'))
     auto_save_map = context.perform_substitution(LaunchConfiguration('auto_save_map'))
+    initial_pose_file = context.perform_substitution(
+        LaunchConfiguration('initial_pose_file')).strip()
 
     use_sim_bool  = use_sim.lower() == 'true'
     localize_mode = mode.lower() == 'localize'
@@ -73,6 +90,7 @@ def launch_nodes(context, *args, **kwargs):
 
     config_dir  = os.path.join(pkg_share, 'config')
     amcl_params = os.path.join(config_dir, 'amcl_params.yaml')
+    amcl_overrides = _load_initial_pose(initial_pose_file)
     ekf_params = os.path.join(config_dir, 'ekf_sim.yaml')
     nodes = []
 
@@ -102,7 +120,7 @@ def launch_nodes(context, *args, **kwargs):
             LifecycleNode(
                 package='nav2_amcl', executable='amcl',
                 name='amcl', namespace='', output='screen',
-                parameters=[amcl_params, {'use_sim_time': use_sim_bool}],
+                parameters=[amcl_params, amcl_overrides, {'use_sim_time': use_sim_bool}],
                 remappings=[('scan', '/scan')],
             ),
             Node(
@@ -202,6 +220,10 @@ def generate_launch_description():
             'auto_save_map',
             default_value='true',
             description='slam 模式：Ctrl-C 退出时自动保存带时间戳地图（yaml+pgm+png）',
+        ),
+        DeclareLaunchArgument(
+            'initial_pose_file', default_value='',
+            description='localize 模式：从 initial_pose.yaml 加载 AMCL 初值',
         ),
         OpaqueFunction(function=launch_nodes),
     ])

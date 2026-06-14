@@ -40,16 +40,13 @@ amcl:
     transform_tolerance: 0.5   # 仿真 /clock 可能有延迟，宽松容忍
     tf_broadcast:        true  # AMCL 发布 map→odom TF
 
-    # ── 初始位姿 ──────────────────────────────────────────────────
-    # 机器人固定从 Gazebo (0,0) 出发 = SLAM map frame (0,0)，自动初始化
+    # ── 初始位姿（Humble: initial_pose.x/y/yaw；由 launch 的 initial_pose_file 覆盖） ──
     set_initial_pose: true
-    initial_pose_x:   0.0
-    initial_pose_y:   0.0
-    initial_pose_z:   0.0
-    initial_pose_yaw: 0.0
-    initial_cov_xx:   0.25     # ±0.5m x 方向不确定度
-    initial_cov_yy:   0.25     # ±0.5m y 方向不确定度
-    initial_cov_aa:   0.0685   # ±15° 朝向不确定度
+    initial_pose:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      yaw: 0.0
 
     # ── 自适应重定位 ──────────────────────────────────────────────
     save_pose_rate:      0.5   # 每 2s 保存位姿，重启后可快速恢复

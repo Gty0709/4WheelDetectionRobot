@@ -13,29 +13,112 @@ Visualization Manager:
       Enabled: true
       Name: Grid
       Plane: XY
-    - Class: rviz_default_plugins/Map
+    - Alpha: 0.7
+      Class: rviz_default_plugins/Map
+      Color Scheme: map
+      Draw Behind: true
       Enabled: true
       Name: Map
       Topic:
+        Depth: 5
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
         Value: /map
+      Use Timestamp: false
+    - Alpha: 0.45
+      Class: rviz_default_plugins/Map
+      Color Scheme: costmap
+      Draw Behind: false
+      Enabled: true
+      Name: Global Costmap
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /global_costmap/costmap
+      Use Timestamp: false
+    - Alpha: 0.6
+      Class: rviz_default_plugins/Map
+      Color Scheme: costmap
+      Draw Behind: false
+      Enabled: true
+      Name: Local Costmap
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /local_costmap/costmap
       Update Topic:
-        Value: /map_updates
-    - Class: rviz_default_plugins/LaserScan
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /local_costmap/costmap_updates
+      Use Timestamp: false
+    - Alpha: 1
+      Class: rviz_default_plugins/LaserScan
       Enabled: true
       Name: Scan
       Size (m): 0.03
       Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
         Value: /scan
+      Use Fixed Frame: true
+    - Alpha: 1
+      Class: nav2_rviz_plugins/ParticleCloud
+      Color: 0; 180; 0
+      Enabled: true
+      Max Arrow Length: 0.3
+      Min Arrow Length: 0.02
+      Name: AMCL Particles
+      Shape: Arrow (Flat)
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /particlecloud
+    - Alpha: 1
+      Class: rviz_default_plugins/RobotModel
+      Description Source: Topic
+      Description Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /robot_description
+      Enabled: true
+      Name: RobotModel
+      TF Prefix: ""
+      Visual Enabled: true
     - Class: rviz_default_plugins/Path
+      Color: 255; 0; 0
       Enabled: true
       Name: Global Plan
       Topic:
         Value: /plan
     - Class: rviz_default_plugins/Path
+      Color: 0; 220; 0
       Enabled: true
-      Name: Local Plan
+      Name: Traveled Path
       Topic:
-        Value: /local_plan
+        Value: /navigation/driven_path
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: Detected Paperclips
+      Topic:
+        Value: /navigation/waypoint_markers
+    - Class: rviz_default_plugins/Pose
+      Enabled: false
+      Name: Playback Pose
+      Topic:
+        Value: /navigation/playback_pose
     - Class: rviz_default_plugins/TF
       Enabled: true
       Name: TF
@@ -54,7 +137,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 8
+      Distance: 12
       Focal Point:
         X: 0
         Y: 0

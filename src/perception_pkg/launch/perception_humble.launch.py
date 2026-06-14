@@ -25,16 +25,14 @@ def _load_initial_pose(path: str) -> dict:
         return {}
     with open(path, encoding='utf-8') as f:
         data = yaml.safe_load(f) or {}
-    out = {'set_initial_pose': True}
-    for key in ('initial_pose_x', 'initial_pose_y', 'initial_pose_yaw'):
-        src = key.replace('initial_pose_', '')
-        if src in data:
-            out[key] = float(data[src])
-    mapping = {'cov_xx': 'initial_cov_xx', 'cov_yy': 'initial_cov_yy', 'cov_aa': 'initial_cov_aa'}
-    for src, dst in mapping.items():
-        if src in data:
-            out[dst] = float(data[src])
-    return out
+    pose = {'z': 0.0}
+    if 'x' in data:
+        pose['x'] = float(data['x'])
+    if 'y' in data:
+        pose['y'] = float(data['y'])
+    if 'yaw' in data:
+        pose['yaw'] = float(data['yaw'])
+    return {'set_initial_pose': True, 'initial_pose': pose}
 
 
 def _map_snapshot_node(maps_dir: str, session_dir: str, use_sim_bool: bool, auto_save: bool):
@@ -78,6 +76,14 @@ def launch_nodes(context, *args, **kwargs):
     if not session_dir and initial_pose_file:
         session_dir = os.path.dirname(os.path.abspath(initial_pose_file))
 
+    ws_root = os.path.abspath(os.path.join(pkg_share, '..', '..', '..', '..'))
+    if map_yaml and not os.path.isabs(map_yaml):
+        map_yaml = os.path.abspath(os.path.join(ws_root, map_yaml))
+    if map_yaml:
+        map_yaml = os.path.realpath(map_yaml)
+    if initial_pose_file and not os.path.isabs(initial_pose_file):
+        initial_pose_file = os.path.abspath(os.path.join(ws_root, initial_pose_file))
+
     use_sim_bool = use_sim.lower() == 'true'
     localize_mode = mode.lower() == 'localize'
     auto_save_bool = auto_save_map.lower() == 'true'
@@ -102,6 +108,8 @@ def launch_nodes(context, *args, **kwargs):
         ))
 
     if localize_mode:
+        if not os.path.isfile(map_yaml):
+            raise RuntimeError(f'map_server yaml not found: {map_yaml}')
         nodes += [
             LifecycleNode(
                 package='nav2_map_server', executable='map_server',

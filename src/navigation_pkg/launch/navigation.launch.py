@@ -10,13 +10,26 @@ from launch_ros.actions import Node
 from launch_ros.descriptions import ParameterFile
 from nav2_common.launch import RewrittenYaml
 
+# Ubuntu 24.04 + Jazzy: 本文件使用 perception.launch.py（gz-sim）
+# Ubuntu 22.04 + Humble: 请改用 navigation_humble.launch.py + perception_humble.launch.py
+
+
+def _resolve_ws_root() -> str:
+    pkg_share = get_package_share_directory('navigation_pkg')
+    return os.path.abspath(os.path.join(pkg_share, '..', '..', '..', '..'))
+
 
 def generate_launch_description():
     pkg_share = get_package_share_directory('navigation_pkg')
     perception_share = get_package_share_directory('perception_pkg')
+    ws_root = _resolve_ws_root()
+    default_session = os.path.join(ws_root, 'src', 'perception_pkg', 'maps', 'map_latest')
+    default_map = os.path.join(default_session, 'slam_map.yaml')
+    default_pose = os.path.join(default_session, 'initial_pose.yaml')
 
     use_sim_time = LaunchConfiguration('use_sim')
     map_yaml_file = LaunchConfiguration('map_yaml_file')
+    initial_pose_file = LaunchConfiguration('initial_pose_file')
     params_file = LaunchConfiguration('params_file')
     autostart = LaunchConfiguration('autostart')
     start_localization = LaunchConfiguration('start_localization')
@@ -46,6 +59,7 @@ def generate_launch_description():
         'waypoint_follower',
     ]
 
+    # JAZZY: perception.launch.py — Humble 请用 navigation_humble.launch.py
     localization_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(perception_share, 'launch', 'perception.launch.py')
@@ -55,6 +69,8 @@ def generate_launch_description():
             'use_sim': use_sim_time,
             'mode': 'localize',
             'map_yaml_file': map_yaml_file,
+            'initial_pose_file': initial_pose_file,
+            'auto_save_map': 'false',
         }.items(),
     )
 
@@ -149,14 +165,8 @@ def generate_launch_description():
             'params_file',
             default_value=os.path.join(pkg_share, 'config', 'nav2_params.yaml'),
         ),
-        DeclareLaunchArgument(
-            'map_yaml_file',
-            default_value=os.path.join(
-                get_package_share_directory('perception_pkg'),
-                'maps',
-                'slam_map.yaml',
-            ),
-        ),
+        DeclareLaunchArgument('map_yaml_file', default_value=default_map),
+        DeclareLaunchArgument('initial_pose_file', default_value=default_pose),
         localization_launch,
         controller_server,
         smoother_server,

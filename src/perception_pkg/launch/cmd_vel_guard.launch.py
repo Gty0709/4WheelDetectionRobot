@@ -1,4 +1,4 @@
-"""启动 cmd_vel_guard：/cmd_vel_teleop → /cmd_vel（默认零速）"""
+"""启动 cmd_vel_guard：/cmd_vel_nav + /cmd_vel_teleop → /cmd_vel（默认零速）"""
 from launch import LaunchDescription
 from launch_ros.actions import Node
 

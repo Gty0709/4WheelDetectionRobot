@@ -16,6 +16,11 @@ src/perception_pkg/maps/*
 !src/perception_pkg/maps/.gitkeep
 !src/perception_pkg/maps/README.md
 
+# Navigation mission results (local runs)
+src/navigation_pkg/result/*
+!src/navigation_pkg/result/.gitkeep
+!src/navigation_pkg/result/README.md
+
 # Training data & run artifacts
 sim_dataset/
 src/detection_pkg/simresult/

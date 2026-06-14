@@ -5,13 +5,18 @@ bringup_classic.launch.py — Ubuntu 22.04 + Humble + Gazebo Classic 11
 默认世界：small_house（Classic 版 worlds/small_house.world）
 TaskA v5 机器人模型：mickrobot_ugv_classic.urdf.xacro
 """
+import math
 import os
+import random
 import subprocess
+
+import yaml
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
     ExecuteProcess,
     IncludeLaunchDescription,
+    LogInfo,
     OpaqueFunction,
     SetEnvironmentVariable,
     TimerAction,
@@ -22,6 +27,99 @@ from launch.substitutions import Command, LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from ament_index_python.packages import get_package_share_directory
+
+
+def _resolve_ws_root() -> str:
+    pkg_share = get_package_share_directory('mickrobot_description')
+    return os.path.abspath(os.path.join(pkg_share, '..', '..', '..', '..'))
+
+
+def _abs_path(path: str) -> str:
+    p = path.strip()
+    if not p:
+        return p
+    if not os.path.isabs(p):
+        p = os.path.join(_resolve_ws_root(), p)
+    return os.path.abspath(os.path.realpath(p))
+
+
+def _read_mapping_prior(path: str) -> tuple[float, float, float] | None:
+    p = path.strip()
+    if not p:
+        return None
+    p = _abs_path(p)
+    if not os.path.isfile(p):
+        return None
+    with open(p, encoding='utf-8') as f:
+        data = yaml.safe_load(f) or {}
+    return float(data['x']), float(data['y']), float(data.get('yaw', 0.0))
+
+
+def _random_spawn_pose(
+    world_name: str,
+    exclude_xy: tuple[float, float] | None = None,
+    exclude_radius: float = 1.2,
+) -> tuple[str, str, str, str]:
+    """Random spawn inside small_house, away from mapping AMCL prior."""
+    defaults = {
+        'small_house': ('1.0', '-1.0', '0.0', '0.0'),
+        'empty': ('0.0', '0.0', '0.0', '0.0'),
+    }
+    if world_name != 'small_house':
+        return defaults.get(world_name, ('0.0', '0.0', '0.0', '0.0'))
+
+    rng = random.Random()
+    candidates = [
+        (2.2, 1.2, 0.6),
+        (3.0, -0.8, -0.2),
+        (1.0, 2.0, 1.2),
+        (-0.5, 1.8, 0.0),
+        (2.5, -2.0, -0.5),
+        (0.0, -1.5, 0.3),
+        (-1.8, 1.2, 0.4),
+        (3.5, 1.5, -0.7),
+    ]
+    if exclude_xy is not None:
+        ex, ey = exclude_xy
+        far = [
+            c for c in candidates
+            if math.hypot(c[0] - ex, c[1] - ey) >= exclude_radius
+        ]
+        if far:
+            candidates = far
+    x, y, yaw = rng.choice(candidates)
+    return str(x), str(y), '0.0', str(yaw)
+
+
+def _resolve_spawn_pose(
+    spawn_mode: str,
+    world_name: str,
+    mapping_prior_file: str,
+) -> tuple[str, str, str, str, str]:
+    """Gazebo spawn pose; prior mode uses mapping_prior_file x/y/yaw."""
+    prior = _read_mapping_prior(mapping_prior_file)
+    mode = spawn_mode.lower()
+
+    if mode == 'fixed':
+        defaults = {
+            'small_house': ('1.0', '-1.0', '0.0', '0.0'),
+            'empty': ('0.0', '0.0', '0.0', '0.0'),
+        }
+        sx, sy, sz, syaw = defaults.get(world_name, ('0.0', '0.0', '0.0', '0.0'))
+        return sx, sy, sz, syaw, 'fixed'
+
+    if mode == 'random':
+        exclude = (prior[0], prior[1]) if prior else None
+        sx, sy, sz, syaw = _random_spawn_pose(world_name, exclude)
+        return sx, sy, sz, syaw, 'random'
+
+    if prior is None:
+        raise RuntimeError(
+            f'spawn_mode={spawn_mode!r} requires valid mapping_prior_file: '
+            f'{mapping_prior_file!r}'
+        )
+    x, y, yaw = prior
+    return str(x), str(y), '0.0', str(yaw), 'prior'
 
 
 def _gpu_env_actions():
@@ -124,11 +222,16 @@ def launch_setup(context, *args, **kwargs):
 
     world_name = context.perform_substitution(LaunchConfiguration('world'))
     world_path = os.path.join(pkg_share, 'worlds', f'{world_name}.world')
-    spawn_poses = {
-        'small_house': ('1.0', '-1.0', '0.0', '0.0'),
-        'empty': ('0.0', '0.0', '0.0', '0.0'),
-    }
-    sx, sy, sz, syaw = spawn_poses.get(world_name, ('0.0', '0.0', '0.0', '0.0'))
+    spawn_mode = context.perform_substitution(LaunchConfiguration('spawn_mode'))
+    mapping_prior_file = context.perform_substitution(
+        LaunchConfiguration('mapping_prior_file'))
+    sx, sy, sz, syaw, mode_tag = _resolve_spawn_pose(
+        spawn_mode, world_name, mapping_prior_file)
+    actions.append(LogInfo(
+        msg=(
+            f'[bringup_classic] Gazebo spawn ({mode_tag}): x={sx} y={sy} yaw={syaw}'
+        ),
+    ))
 
     gazebo_ros_share = get_package_share_directory('gazebo_ros')
     actions.append(IncludeLaunchDescription(
@@ -213,6 +316,19 @@ def generate_launch_description():
         default_value='false',
         description='是否在本 launch 中启动 RViz（双终端方案请 false）',
     )
+    ws_root = _resolve_ws_root()
+    default_pose = os.path.join(
+        ws_root, 'src', 'perception_pkg', 'maps', 'map_latest', 'initial_pose.yaml')
+    declare_initial_pose_cmd = DeclareLaunchArgument(
+        'mapping_prior_file',
+        default_value=default_pose,
+        description='mapping 先验位姿 YAML（prior 模式用于 Gazebo spawn）',
+    )
+    declare_spawn_mode_cmd = DeclareLaunchArgument(
+        'spawn_mode',
+        default_value='prior',
+        description='prior=按 mapping_prior_file spawn；random=小房子内随机；fixed=默认坐标',
+    )
 
     ld = LaunchDescription()
     for env_action in _gpu_env_actions():
@@ -221,5 +337,7 @@ def generate_launch_description():
     ld.add_action(declare_world_cmd)
     ld.add_action(declare_gui_cmd)
     ld.add_action(declare_launch_rviz_cmd)
+    ld.add_action(declare_spawn_mode_cmd)
+    ld.add_action(declare_initial_pose_cmd)
     ld.add_action(OpaqueFunction(function=launch_setup))
     return ld
