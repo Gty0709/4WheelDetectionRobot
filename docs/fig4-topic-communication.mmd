@@ -1,0 +1,80 @@
+flowchart TB
+  subgraph T3["终端3 teleop_slider"]
+    ST["slider_teleop"]
+  end
+
+  subgraph T1A["终端1-A bringup_classic"]
+    GZDD["Gazebo diff_drive"]
+    GZIMU["imu_plugin"]
+    GZCIMU["camera_imu_plugin"]
+    GZCAM["camera L/R plugins"]
+    GZLASER["laser_plugin"]
+    RSP["robot_state_publisher"]
+    CVG["cmd_vel_guard"]
+    REL_CAM["camera topic relay x4"]
+  end
+
+  subgraph T1B["终端1-B perception_humble slam"]
+    EKF["ekf_filter_node"]
+    STB["sync_slam_toolbox"]
+    REL_MAP["relay map"]
+    REL_WP["relay waypoints"]
+    MMS["map_snapshot_saver"]
+  end
+
+  subgraph T1C["终端1-C rosbag2"]
+    BAG["record bag"]
+  end
+
+  subgraph T4["终端4 detection"]
+    SYNC["stereo sync"]
+    YOLO["YOLO best.pt"]
+    BP["backprojection"]
+    TRK["waypoint_track"]
+    CD["clip_detector_node"]
+    DISK["session files"]
+  end
+
+  subgraph T2["终端2 rviz_slam"]
+    RV1["slam_classic.rviz"]
+    RV2["detection.rviz"]
+  end
+
+  subgraph MODC["模块C Nav2 localize"]
+    NAV2["navigation_pkg"]
+  end
+
+  ST -->|cmd_vel_teleop Twist| CVG
+  CVG -->|cmd_vel Twist| GZDD
+  MMS -->|stop burst| CVG
+
+  GZDD -->|wheel_odom| EKF
+  EKF -->|odom TF| STB
+  EKF -->|odom| CD
+  GZLASER -->|scan| STB
+  GZLASER --> RV1
+  GZCAM --> REL_CAM
+  REL_CAM -->|camera stereo| CD
+  GZCAM --> BAG
+  GZLASER --> BAG
+  GZDD --> BAG
+  GZIMU --> BAG
+  GZCIMU --> BAG
+
+  RSP -->|tf_static| STB
+  RSP -->|tf_static| CD
+  STB -->|map| REL_MAP
+  STB -->|map| MMS
+  STB -->|map| RV1
+  STB -.->|TF map-odom| CD
+  EKF -.->|TF odom-base| CD
+
+  CD --> SYNC --> YOLO --> BP --> TRK --> DISK
+  CD -->|annotated_image| RV2
+  CD -->|markers| RV2
+  CD -->|waypoints| REL_WP
+  CD -->|waypoints| RV2
+  MMS -->|mapping_finalized| CD
+  MMS -->|slam_map files| DISK
+  REL_MAP -->|perception map| NAV2
+  REL_WP -->|perception waypoints| NAV2

@@ -13,6 +13,197 @@
 
 ---
 
+## 系统演示
+
+### 图 1 — 四终端一键启动效果
+
+`python3 scripts/launch_mapping_terminals.py --kill-first` 依次打开：**仿真+SLAM+录包**、**RViz 双窗口**、**滑条遥控**、**YOLO 检测**。左为 `detection.rviz`（检测图 + 航点），右为 `slam_classic.rviz`（地图 + 激光 + 轨迹），中间为 MickRobot 滑条 GUI。
+
+![图1：四终端建图启动效果](docs/screenshots/fig1-startup.png)
+
+### 图 2 — 同步 SLAM 建图与 YOLO 检测
+
+机器人在 `small_house` 中巡逻/遥控建图的同时，左目 YOLO 实时检测回形针并反投影到 `map` 帧；RViz 左窗显示绿框检测图与绿色航点球，右窗显示 slam_toolbox 栅格地图与黄色 `/odom` 轨迹。
+
+![图2：SLAM 建图与检测同步运行](docs/screenshots/fig2-slam-detection.png)
+
+### 图 3 — 检测航点（绿）与 GT 真值（红）比对
+
+会话 `map_20260614_185137` 落盘图：**绿色圆** = YOLO 地面反投影 + 地图空间去重后的航点；**红色十字** = `paperclips_small_house.yaml` 中 Gazebo 真值；**蓝色箭头** = 建图结束位姿。绿点与红点对齐表明 TF 运动补偿 + 地面求交反投影已收敛。
+
+![图3：航点与真值比对（map_20260614_185137）](docs/screenshots/fig3-waypoints-gt.png)
+
+### 图 4 — 话题与消息通讯全图（四终端建图）
+
+下图覆盖 **模块 A（仿真）→ B（SLAM/EKF）→ E（检测）→ RViz/落盘** 的全部 ROS 2 话题、服务、TF 与文件输出。定位/导航模式（AMCL + Nav2）见 [docs/TOPIC_COMMUNICATION.md](docs/TOPIC_COMMUNICATION.md)。
+
+![图4：话题与消息通讯全图](docs/screenshots/fig4-topic-communication.png)
+
+<details>
+<summary>Mermaid 源码（本地预览可编辑，GitHub 对部分字符支持有限）</summary>
+
+```mermaid
+flowchart TB
+  subgraph T3["终端3 teleop_slider"]
+    ST["slider_teleop"]
+  end
+
+  subgraph T1A["终端1-A bringup_classic"]
+    GZDD["Gazebo diff_drive"]
+    GZIMU["imu_plugin"]
+    GZCIMU["camera_imu_plugin"]
+    GZCAM["camera L/R plugins"]
+    GZLASER["laser_plugin"]
+    RSP["robot_state_publisher"]
+    CVG["cmd_vel_guard"]
+    REL_CAM["camera topic relay x4"]
+  end
+
+  subgraph T1B["终端1-B perception_humble slam"]
+    EKF["ekf_filter_node"]
+    STB["sync_slam_toolbox"]
+    REL_MAP["relay map"]
+    REL_WP["relay waypoints"]
+    MMS["map_snapshot_saver"]
+  end
+
+  subgraph T1C["终端1-C rosbag2"]
+    BAG["record bag"]
+  end
+
+  subgraph T4["终端4 detection"]
+    SYNC["stereo sync"]
+    YOLO["YOLO best.pt"]
+    BP["backprojection"]
+    TRK["waypoint_track"]
+    CD["clip_detector_node"]
+    DISK["session files"]
+  end
+
+  subgraph T2["终端2 rviz_slam"]
+    RV1["slam_classic.rviz"]
+    RV2["detection.rviz"]
+  end
+
+  subgraph MODC["模块C Nav2 localize"]
+    NAV2["navigation_pkg"]
+  end
+
+  ST -->|cmd_vel_teleop Twist| CVG
+  CVG -->|cmd_vel Twist| GZDD
+  MMS -->|stop burst| CVG
+
+  GZDD -->|wheel_odom| EKF
+  EKF -->|odom TF| STB
+  EKF -->|odom| CD
+  GZLASER -->|scan| STB
+  GZLASER --> RV1
+  GZCAM --> REL_CAM
+  REL_CAM -->|camera stereo| CD
+  GZCAM --> BAG
+  GZLASER --> BAG
+  GZDD --> BAG
+  GZIMU --> BAG
+  GZCIMU --> BAG
+
+  RSP -->|tf_static| STB
+  RSP -->|tf_static| CD
+  STB -->|map| REL_MAP
+  STB -->|map| MMS
+  STB -->|map| RV1
+  STB -.->|TF map-odom| CD
+  EKF -.->|TF odom-base| CD
+
+  CD --> SYNC --> YOLO --> BP --> TRK --> DISK
+  CD -->|annotated_image| RV2
+  CD -->|markers| RV2
+  CD -->|waypoints| REL_WP
+  CD -->|waypoints| RV2
+  MMS -->|mapping_finalized| CD
+  MMS -->|slam_map files| DISK
+  REL_MAP -->|perception map| NAV2
+  REL_WP -->|perception waypoints| NAV2
+```
+
+源文件：[docs/fig4-topic-communication.mmd](docs/fig4-topic-communication.mmd) · SVG：[docs/screenshots/fig4-topic-communication.svg](docs/screenshots/fig4-topic-communication.svg)
+
+</details>
+
+**TF 树（建图时 Fixed Frame = `map`）**
+
+```text
+map -- slam_toolbox --> odom -- ekf_filter_node --> base_footprint -- robot_state_publisher --> base_link
+                                                                                              +- laser_link       scan
+                                                                                              +- imu_link         imu/data
+                                                                                              +- camera_imu_link  camera/imu/data
+                                                                                              +- camera_left_link 左目 REP-103
+                                                                                              +- camera_right_link 右目 baseline 7.5cm
+```
+
+<details>
+<summary>图4 话题明细（点击展开）</summary>
+
+**控制链**
+
+| 话题 | 类型 | 发布 → 订阅 | 说明 |
+|------|------|-------------|------|
+| `/cmd_vel_teleop` | `Twist` | slider_teleop → cmd_vel_guard | v, ω @20Hz |
+| `/cmd_vel` | `Twist` | cmd_vel_guard → diff_drive | 唯一写 Gazebo；30Hz 零速守护 |
+| `/teleop/wheel_speeds` | `Float64MultiArray` | slider_teleop → — | 调试轮速 |
+
+**Gazebo 传感器（模块 A）**
+
+| 话题 | 类型 | 帧 | 频率 |
+|------|------|-----|------|
+| `/wheel/odom` | `Odometry` | odom→base_footprint | 50Hz |
+| `/scan` | `LaserScan` | laser_link | 10Hz, 360点 |
+| `/imu/data` | `Imu` | imu_link | 100Hz |
+| `/camera/imu/data` | `Imu` | camera_imu_link | 100Hz, 不进EKF |
+| `/camera/left/image_raw` | `Image` | camera_left_link | 30Hz, RELIABLE |
+| `/camera/right/image_raw` | `Image` | camera_right_link | 30Hz |
+| `/camera/left/camera_info` | `CameraInfo` | — | 内参 K |
+| `/camera/right/camera_info` | `CameraInfo` | — | 内参 K |
+| `/joint_states` | `JointState` | — | 30Hz |
+
+相机 relay：`camera_*_sensor/*` → `/camera/*/image_raw` 与 `camera_info`（bringup_classic 启动 5s 后）
+
+**SLAM / EKF（模块 B）**
+
+| 话题 / TF | 类型 | 发布 → 订阅 |
+|-----------|------|-------------|
+| `/odom` | `Odometry` | ekf_filter_node → slam_toolbox, clip_detector |
+| `/map` | `OccupancyGrid` | slam_toolbox → saver, RViz, relay |
+| `/perception/map` | `OccupancyGrid` | relay → Nav2 |
+| `map→odom` | TF | slam_toolbox |
+| `odom→base_footprint` | TF | ekf_filter_node |
+
+**检测（模块 E）clip_detector_node**
+
+| 话题 | 类型 | 方向 |
+|------|------|------|
+| `/detection/annotated_image` | `Image` | 发布 → detection.rviz |
+| `/detection/markers` | `MarkerArray` | 发布 → detection.rviz |
+| `/detection/waypoints` | `PoseArray` | 发布 → relay, RViz |
+| `/perception/waypoints` | `PoseArray` | relay → Nav2 |
+| `/perception/mapping_finalized` | `Empty` | saver → clip_detector |
+
+内部流水线：`ApproximateTimeSynchronizer` → YOLO(`simmodel/best.pt`) → 地面求交反投影 + `motion_compensation` TF 合成 → `waypoint_track` 地图空间关联 + OSNet ReID → 落盘
+
+**服务与落盘**
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `/map_snapshot_saver/save_map` | `Trigger` | 滑条退出 / 手动存图 |
+| `waypoints.yaml` | 文件 | 每秒 + 退出时写入 |
+| `slam_map_waypoints.png` | 文件 | 绿点航点 + 红叉 GT |
+| `slam_map.yaml/.pgm` | 文件 | 栅格地图 |
+| `initial_pose.yaml` | 文件 | AMCL 初值 |
+| `bag/` | rosbag2 | 含 camera, scan, odom, tf |
+
+**录包话题**：`/scan` `/odom` `/wheel/odom` `/imu/data` `/camera/imu/data` `/camera/*` `/map` `/tf` `/tf_static` `/cmd_vel` `/cmd_vel_teleop` `/clock`
+
+</details>
+
 ## 快速开始（本机 Ubuntu 22.04）
 
 ```bash
@@ -25,39 +216,7 @@ bash setup_humble.sh
 source env_humble.bash
 ```
 
-### 全自动建图（推荐）
-
-一条命令启动 **Gazebo + SLAM + RViz + 自动巡逻**，巡逻结束与 Ctrl-C 退出时自动保存地图：
-
-```bash
-source env_humble.bash
-ros2 launch perception_pkg auto_slam.launch.py
-# 或（Ctrl-C 时 shell 兜底保存）
-bash scripts/auto_build_map.sh
-```
-
-默认 **record_bag:=true**，录包到 `src/perception_pkg/maps/map_<时间戳>/bag/`。关闭录包：`record_bag:=false record_db:=false`。
-
-地图输出到 `src/perception_pkg/maps/map_<时间戳>/`：
-
-| 文件 | 说明 |
-|------|------|
-| `slam_map.yaml` / `.pgm` / `.png` | 栅格地图（无航点） |
-| `waypoints.yaml` | 检测反投影航点（**0.35 m 去重** + 外观重识别后写入） |
-| `slam_map_waypoints.png` | 地图 + **绿色检测航点** + **红色 GT 回形针** + **橙色终止位姿箭头** |
-| `initial_pose.yaml` | `map` 帧下 `x, y, yaw`（建图时每秒更新，供 AMCL） |
-| `session_meta.json` | 会话元数据 |
-| `bag/` | 本次 rosbag |
-| `map_latest` | 符号链接 → 最近一次 `map_*` |
-
-定位阶段加载先验：
-
-```bash
-ros2 launch perception_pkg perception_humble.launch.py use_sim:=true mode:=localize \
-  initial_pose_file:=src/perception_pkg/maps/map_<时间戳>/initial_pose.yaml
-```
-
-### 手动分终端建图（模块 B + E）
+### 建图（四终端）
 
 启动后终端 1 会创建 `maps/map_<时间戳>/` 并将 **`map_latest` 指向本次会话**；终端 4 可直接用 `map_latest`，无需抄时间戳。
 
@@ -68,7 +227,30 @@ ros2 launch perception_pkg perception_humble.launch.py use_sim:=true mode:=local
 | **3** | 滑条遥控 | `teleop_slider.launch.py` |
 | **4** | YOLO 检测 + 航点反投影 | `detection_pkg detection.launch.py` |
 
-**一键启动 4 终端**（每隔 2s 依次打开上表四个窗口，自动 `source env_humble.bash`）：
+地图输出到 `src/perception_pkg/maps/map_<时间戳>/`：
+
+| 文件 | 说明 |
+|------|------|
+| `slam_map.yaml` / `.pgm` / `.png` | 栅格地图（无航点） |
+| `waypoints.yaml` | 检测反投影航点（去重 + 外观重识别后写入） |
+| `slam_map_waypoints.png` | 地图 + **绿色检测航点** + **红色 GT 回形针** + **橙色终止位姿箭头** |
+| `initial_pose.yaml` | `map` 帧下 `x, y, yaw`（建图时每秒更新，供 AMCL） |
+| `session_meta.json` | 会话元数据 |
+| `bag/` | 本次 rosbag（默认开启录包） |
+| `map_latest` | 符号链接 → 最近一次 `map_*` |
+
+关闭录包：终端 1 加 `record_bag:=false record_db:=false`。
+
+定位阶段加载先验：
+
+```bash
+ros2 launch perception_pkg perception_humble.launch.py use_sim:=true mode:=localize \
+  initial_pose_file:=src/perception_pkg/maps/map_<时间戳>/initial_pose.yaml
+```
+
+#### 方式一：一键启动 4 终端
+
+每隔 2s 依次打开上表四个窗口，自动 `source env_humble.bash`：
 
 ```bash
 python3 scripts/launch_mapping_terminals.py
@@ -83,11 +265,14 @@ python3 scripts/launch_mapping_terminals.py --tmux
 
 指定终端模拟器：`TERMINAL=gnome-terminal python3 scripts/launch_mapping_terminals.py`
 
+#### 方式二：分终端启动
+
 **终端 1** — 仿真 + SLAM + **录包**（默认 `record_bag:=true`）：
 
 ```bash
 source env_humble.bash
 ros2 launch perception_pkg humble_sim_slam.launch.py
+# SSH / headless：gui:=false
 ```
 
 录包输出：`src/perception_pkg/maps/map_<时间戳>/bag/`。
@@ -186,37 +371,6 @@ bash scripts/setup_detection_venv.sh
 
 ```bash
 python3 scripts/overlay_session_waypoints.py src/perception_pkg/maps/map_<时间戳>
-```
-
-一键带遥控（单终端 GUI + 录包 + 存图）：
-
-```bash
-ros2 launch perception_pkg humble_sim_slam.launch.py launch_teleop:=true launch_rviz:=true
-```
-
-### 分步启动
-
-```bash
-# 终端1：Gazebo Classic + 机器人（TaskA v5 模型）
-ros2 launch mickrobot_description bringup_classic.launch.py use_sim:=true launch_rviz:=false
-
-# 终端2：SLAM
-ros2 launch perception_pkg perception_humble.launch.py use_sim:=true mode:=slam
-
-# 建图完成后保存地图（SLAM 运行中手动存盘；退出时已自动保存）
-ros2 launch perception_pkg save_map.launch.py use_sim:=true
-
-# 定位模式
-ros2 launch perception_pkg perception_humble.launch.py use_sim:=true mode:=localize
-
-# 导航（需先 localize）
-ros2 launch navigation_pkg navigation.launch.py use_sim:=true
-```
-
-无 GUI 时（SSH/headless）：
-
-```bash
-ros2 launch perception_pkg humble_sim_slam.launch.py gui:=false
 ```
 
 ---
