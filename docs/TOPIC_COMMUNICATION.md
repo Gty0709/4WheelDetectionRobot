@@ -198,10 +198,18 @@ save_map.launch.py 或 humble_sim_slam 退出 → maps/map_<ts>/slam_map.yaml + 
 
 perception_humble mode:=localize
   initial_pose_file:=maps/map_<ts>/initial_pose.yaml
-  → map_server + AMCL
+  → map_server + AMCL（lifecycle_manager_localization）
 
-navigation.launch.py → Nav2 + /perception/map + /perception/current_pose + /perception/waypoints
+navigation_humble.launch.py（三终端之终端 2）
+  → Nav2 节点逐个启动 + lifecycle_manager_navigation（约 25–30s 后 Managed nodes are active）
+  → 订阅 /map、/scan；发布 /cmd_vel_nav → cmd_vel_guard → /cmd_vel
+
+patrol_rviz.launch.py（终端 3）
+  → waypoint_patrol + navigation.rviz
+  → 结果落盘 result/path_<ts>/（mission_trajectory.png 等）
 ```
+
+详见 [`README.md`](../README.md) 模块 C、[NAVIGATION_TUNING.md](NAVIGATION_TUNING.md)。
 
 ---
 

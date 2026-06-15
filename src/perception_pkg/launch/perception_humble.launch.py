@@ -122,14 +122,18 @@ def launch_nodes(context, *args, **kwargs):
                 parameters=[amcl_params, amcl_overrides, {'use_sim_time': use_sim_bool}],
                 remappings=[('scan', '/scan')],
             ),
-            Node(
-                package='nav2_lifecycle_manager', executable='lifecycle_manager',
-                name='lifecycle_manager_localization', output='screen',
-                parameters=[{
-                    'use_sim_time': use_sim_bool,
-                    'autostart': True,
-                    'node_names': ['map_server', 'amcl'],
-                }],
+            TimerAction(
+                period=3.0,
+                actions=[Node(
+                    package='nav2_lifecycle_manager', executable='lifecycle_manager',
+                    name='lifecycle_manager_localization', output='screen',
+                    parameters=[{
+                        'use_sim_time': use_sim_bool,
+                        'autostart': True,
+                        'node_names': ['map_server', 'amcl'],
+                        'bond_timeout': 15.0,
+                    }],
+                )],
             ),
             Node(
                 package='topic_tools', executable='relay', name='map_relay',

@@ -13,7 +13,7 @@ import rclpy
 from action_msgs.msg import GoalStatus
 from builtin_interfaces.msg import Duration as DurationMsg
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped, Quaternion, Point
-from nav2_msgs.action import BackUp, NavigateToPose
+from nav2_msgs.action import BackUp, NavigateToPose, Spin
 from nav2_msgs.srv import ClearEntireCostmap
 from nav_msgs.msg import OccupancyGrid, Odometry, Path
 from rclpy.action import ActionClient
@@ -23,7 +23,12 @@ from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from tf2_ros import Buffer, TransformListener
 from visualization_msgs.msg import Marker, MarkerArray
 
-from navigation_pkg.collision_check import footprint_free, footprint_max_cost
+from navigation_pkg.collision_check import (
+    backup_target_yaw,
+    estimate_free_heading,
+    footprint_free,
+    footprint_max_cost,
+)
 from navigation_pkg.manhattan_tsp import tsp_from_start_pose
 from navigation_pkg.mission_recorder import MissionRecorder
 from navigation_pkg.obstacle_detect import StaticMapIndex, extract_dynamic_obstacles
@@ -45,6 +50,7 @@ class Phase(Enum):
     COMPUTE_TSP = auto()
     GO_NEXT = auto()
     BACKUP = auto()
+    SPIN = auto()
     SAVE = auto()
     DONE = auto()
 
@@ -86,8 +92,11 @@ class WaypointPatrol(Node):
         self._tsp_computing = False
         self._tsp_result = None
         self._backup_client: Optional[ActionClient] = None
+        self._spin_client: Optional[ActionClient] = None
         self._backup_handle = None
+        self._spin_handle = None
         self._backup_continue = None
+        self._spin_continue = None
         self._backup_attempts = 0
         self._aborted_ids: List[int] = []
         self._last_plan_poses: List[dict] = []
@@ -96,6 +105,8 @@ class WaypointPatrol(Node):
         self._prior_pose: Optional[InitialPose] = None
         self._initialpose_sent = False
         self._shift_stable_start: Optional[rclpy.time.Time] = None
+        self._nav2_wait_log_time: Optional[rclpy.time.Time] = None
+        self._relocalize_log_time: Optional[rclpy.time.Time] = None
         self._traj_tracker = OdomTrajectoryTracker()
         self._last_odom_pose: Optional[tuple] = None
         self._stall_anchor: Optional[tuple] = None  # x, y, dist, time, yaw
@@ -125,6 +136,7 @@ class WaypointPatrol(Node):
 
         self._nav_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
         self._backup_client = ActionClient(self, BackUp, 'backup')
+        self._spin_client = ActionClient(self, Spin, 'spin')
         self._clear_local_costmap = self.create_client(
             ClearEntireCostmap, '/local_costmap/clear_entirely_local_costmap'
         )
@@ -377,11 +389,82 @@ class WaypointPatrol(Node):
         send_fut = self._backup_client.send_goal_async(goal)
         send_fut.add_done_callback(self._backup_response_cb)
 
-    def _clear_costmaps(self) -> None:
+    def _clear_costmaps(self, local_only: bool = False) -> None:
         req = ClearEntireCostmap.Request()
-        for client in (self._clear_local_costmap, self._clear_global_costmap):
+        clients = [self._clear_local_costmap]
+        if not local_only:
+            clients.append(self._clear_global_costmap)
+        for client in clients:
             if client.service_is_ready():
                 client.call_async(req)
+
+    def _estimate_escape_spin_yaw(self) -> Optional[float]:
+        pose = self._get_pose()
+        if pose is None or self._costmap is None:
+            return None
+        x, y, yaw = pose
+        info = self._costmap.info
+        free_h = estimate_free_heading(
+            x, y, yaw,
+            info.width, info.height, info.resolution,
+            info.origin.position.x, info.origin.position.y,
+            self._costmap.data,
+        )
+        target_yaw = backup_target_yaw(yaw, free_h)
+        delta = math.atan2(
+            math.sin(target_yaw - yaw), math.cos(target_yaw - yaw)
+        )
+        if abs(delta) < 0.12:
+            return None
+        return delta
+
+    def _begin_escape_recovery(self, continue_fn) -> None:
+        spin_delta = self._estimate_escape_spin_yaw()
+        if spin_delta is not None:
+            self._spin_then_backup(spin_delta, continue_fn)
+            return
+        self._backup_to_free(continue_fn)
+
+    def _spin_then_backup(self, delta_yaw: float, continue_fn) -> None:
+        if not self._spin_client.wait_for_server(timeout_sec=0.0):
+            self.get_logger().warn('spin action server unavailable; backup directly')
+            self._backup_to_free(continue_fn)
+            return
+        self._spin_continue = continue_fn
+        self._phase = Phase.SPIN
+        goal = Spin.Goal()
+        goal.target_yaw = float(delta_yaw)
+        goal.time_allowance = DurationMsg(sec=12, nanosec=0)
+        self.get_logger().info(f'Spin {delta_yaw:.2f} rad toward freer space before backup')
+        send_fut = self._spin_client.send_goal_async(goal)
+        send_fut.add_done_callback(self._spin_response_cb)
+
+    def _spin_response_cb(self, future) -> None:
+        self._spin_handle = future.result()
+        if self._spin_handle is None or not self._spin_handle.accepted:
+            self.get_logger().warn('Spin goal rejected; backup directly')
+            self._finish_spin(continue_anyway=True)
+            return
+        result_fut = self._spin_handle.get_result_async()
+        result_fut.add_done_callback(self._spin_result_cb)
+
+    def _spin_result_cb(self, future) -> None:
+        status = future.result().status
+        if status != GoalStatus.STATUS_SUCCEEDED:
+            self.get_logger().warn(f'Spin failed status={status}; backup anyway')
+        self._finish_spin(continue_anyway=False)
+
+    def _finish_spin(self, continue_anyway: bool) -> None:
+        fn = self._spin_continue
+        self._spin_continue = None
+        self._spin_handle = None
+        self._phase = Phase.GO_NEXT
+        if fn is None:
+            return
+        if continue_anyway:
+            fn()
+            return
+        self._backup_to_free(fn)
 
     def _current_tsp_wp(self) -> Optional[Waypoint]:
         if self._tsp_cursor < 0 or self._tsp_cursor >= len(self._tsp_targets):
@@ -504,7 +587,12 @@ class WaypointPatrol(Node):
             except Exception:
                 pass
 
-    def _schedule_nav_retry(self, delay_sec: Optional[float] = None) -> None:
+    def _schedule_nav_retry(
+        self,
+        delay_sec: Optional[float] = None,
+        *,
+        local_only: bool = False,
+    ) -> None:
         if delay_sec is None:
             delay_sec = self._args.retry_delay_sec
         if self._retry_timer is not None:
@@ -517,8 +605,9 @@ class WaypointPatrol(Node):
                 self._retry_timer = None
             if self._current_tsp_wp() is None:
                 return
-            self._clear_costmaps()
-            self.get_logger().info('Re-sending TSP leg goal after backup, clear, and wait')
+            self._clear_costmaps(local_only=local_only)
+            label = 'local clear' if local_only else 'clear'
+            self.get_logger().info(f'Re-sending TSP leg goal after {label} and wait')
             self._send_goal()
 
         self._retry_timer = self.create_timer(delay_sec, _fire)
@@ -545,9 +634,24 @@ class WaypointPatrol(Node):
         if dist < adist - 0.05:
             self._stall_anchor = (pose[0], pose[1], dist, now, pose[2])
             return
-        # Turning in place: extend window, do not treat as oscillation stall
         if moved < 0.15 and dyaw > 0.35:
-            self._stall_anchor = (pose[0], pose[1], dist, now, pose[2])
+            if (
+                elapsed >= self._args.stall_spin_time_sec
+                and dist >= adist - 0.03
+            ):
+                wp = self._current_tsp_wp()
+                if wp is None:
+                    return
+                self.get_logger().warn(
+                    f'Nav spin-stall on TSP leg id={wp.id}: '
+                    f'dyaw {dyaw:.2f} rad in {elapsed:.0f}s, goal dist {dist:.2f} m'
+                )
+                self._stall_anchor = None
+                self._ignore_next_nav_result = True
+                self._cancel_nav_goal()
+                self._on_nav_failed()
+                return
+            self._stall_anchor = (pose[0], pose[1], dist, atime, pose[2])
             return
         if (
             elapsed >= self._args.stall_time_sec
@@ -583,12 +687,25 @@ class WaypointPatrol(Node):
             return
         self._nav_retries += 1
         max_retries = self._max_nav_retries()
+        if self._nav_retries == 1:
+            self.get_logger().info(
+                f'Nav failed; quick local clear + retry in '
+                f'{self._args.quick_retry_delay_sec:.1f}s (1/{max_retries})'
+            )
+            self._schedule_nav_retry(
+                self._args.quick_retry_delay_sec,
+                local_only=True,
+            )
+            return
         if self._nav_retries <= max_retries:
             self.get_logger().info(
-                f'Nav failed; backup then replan in {self._args.retry_delay_sec:.0f}s '
+                f'Nav failed; directed escape then retry in '
+                f'{self._args.retry_delay_sec:.1f}s '
                 f'({self._nav_retries}/{max_retries})'
             )
-            self._backup_to_free(lambda: self._schedule_nav_retry())
+            self._begin_escape_recovery(
+                lambda: self._schedule_nav_retry(local_only=False)
+            )
             return
         if self._try_approach_success():
             return
@@ -635,7 +752,7 @@ class WaypointPatrol(Node):
             self.get_logger().info(
                 f'Robot in inflated cost before sweep leg id={wp.id}; backup first'
             )
-            self._backup_to_free(lambda: self._send_goal(wp))
+            self._begin_escape_recovery(lambda: self._send_goal(wp))
             return
         self._send_goal(wp)
 
@@ -664,7 +781,7 @@ class WaypointPatrol(Node):
             self.get_logger().warn(
                 f'Sweep could not reach id={wp.id}; trying next unvisited id={remaining[0].id}'
             )
-            self._backup_to_free(lambda: self._begin_sweep_leg_for_wp(remaining[0]))
+            self._begin_escape_recovery(lambda: self._begin_sweep_leg_for_wp(remaining[0]))
             return
         self._in_sweep_pass = False
         if self._start_next_sweep_round():
@@ -696,7 +813,7 @@ class WaypointPatrol(Node):
                 self.get_logger().info(
                     f'Robot in inflated cost before TSP leg id={wp.id}; backup first'
                 )
-                self._backup_to_free(lambda: self._send_goal(wp))
+                self._begin_escape_recovery(lambda: self._send_goal(wp))
                 return
             self._send_goal(wp)
             return
@@ -860,13 +977,40 @@ class WaypointPatrol(Node):
                 self._publish_amcl_prior()
                 t = self.get_clock().now().nanoseconds * 1e-9
                 self._recorder.save_progress(t, 'wait_relocalize', {})
+            else:
+                now = self.get_clock().now()
+                if self._nav2_wait_log_time is None:
+                    self._nav2_wait_log_time = now
+                elif (now - self._nav2_wait_log_time).nanoseconds * 1e-9 >= 10.0:
+                    self.get_logger().warn(
+                        'Still waiting for Nav2 navigate_to_pose action server. '
+                        'Terminal 2 must show lifecycle_manager_navigation: '
+                        'Managed nodes are active (wait ~25–30s after terminal 2 start).'
+                    )
+                    self._nav2_wait_log_time = now
             return
 
         if self._phase == Phase.WAIT_RELOCALIZE:
             pose = self._get_pose()
             if pose is None:
+                now = self.get_clock().now()
+                if self._relocalize_log_time is None:
+                    self._relocalize_log_time = now
+                elif (now - self._relocalize_log_time).nanoseconds * 1e-9 >= 8.0:
+                    self.get_logger().warn(
+                        'Waiting for map→base_footprint TF (AMCL not publishing yet)'
+                    )
+                    self._relocalize_log_time = now
                 return
             now = self.get_clock().now()
+            elapsed = (now - self._relocalize_start).nanoseconds * 1e-9
+            if elapsed >= self._args.relocalize_timeout_sec:
+                self.get_logger().warn(
+                    f'Relocalization timeout ({elapsed:.0f}s); '
+                    'starting TSP with current AMCL pose'
+                )
+                self._begin_tsp_from_pose(pose)
+                return
             if self._relocalize_ready(pose, now):
                 self._begin_tsp_from_pose(pose)
             return
@@ -915,12 +1059,14 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         default='',
         help='Map session dir (default: src/perception_pkg/maps/map_latest)',
     )
-    p.add_argument('--dwell-sec', type=float, default=2.0)
+    p.add_argument('--dwell-sec', type=float, default=0.75)
     p.add_argument('--position-tolerance', type=float, default=0.12)
     p.add_argument('--approach-tolerance', type=float, default=0.40,
                    help='Mark waypoint visited if nav fails but within this distance (m).')
     p.add_argument('--stall-time-sec', type=float, default=12.0,
                    help='Trigger recovery if no goal progress while moving this long.')
+    p.add_argument('--stall-spin-time-sec', type=float, default=8.0,
+                   help='Treat in-place spin without goal progress as stall after this long.')
     p.add_argument('--stall-min-travel-m', type=float, default=0.25,
                    help='Min path length in stall window to count as oscillation.')
     p.add_argument('--relocalize-settle-sec', type=float, default=2.0,
@@ -937,8 +1083,10 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
                    help='Approach success radius (m) during sweep pass.')
     p.add_argument('--max-sweep-rounds', type=int, default=4,
                    help='How many full sweep rounds over unvisited TSP legs.')
-    p.add_argument('--retry-delay-sec', type=float, default=10.0,
-                   help='Wait after backup before re-sending navigation goal.')
+    p.add_argument('--retry-delay-sec', type=float, default=1.0,
+                   help='Wait after escape backup before re-sending navigation goal.')
+    p.add_argument('--quick-retry-delay-sec', type=float, default=0.8,
+                   help='Wait after first-failure local clear before re-sending goal.')
     p.add_argument('--backup-dist', type=float, default=0.40,
                    help='BackUp behavior distance (m) when leaving high-cost cells.')
     p.add_argument('--backup-speed', type=float, default=0.18)

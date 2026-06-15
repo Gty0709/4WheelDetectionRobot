@@ -32,7 +32,7 @@ ros2 launch navigation_pkg playback_rviz.launch.py rate:=10.0
 
 ```bash
 ros2 launch navigation_pkg playback_rviz.launch.py \
-  mission:=src/navigation_pkg/result/path_20260615_084352 rate:=5.0
+  mission:=src/navigation_pkg/result/path_20260615_131011 rate:=5.0
 ```
 
 仅发布话题（不打开 RViz / 地图）：

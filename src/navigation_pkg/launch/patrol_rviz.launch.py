@@ -4,7 +4,7 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, OpaqueFunction, TimerAction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -37,12 +37,15 @@ def _launch_setup(context, *args, **kwargs):
             arguments=['-d', os.path.join(pkg_share, 'rviz', 'navigation.rviz')],
             parameters=[{'use_sim_time': use_sim}],
         ),
-        Node(
-            package='navigation_pkg',
-            executable='waypoint_patrol.py',
-            output='screen',
-            parameters=[{'use_sim_time': use_sim}],
-            arguments=['--session-dir', session_dir],
+        TimerAction(
+            period=25.0,
+            actions=[Node(
+                package='navigation_pkg',
+                executable='waypoint_patrol.py',
+                output='screen',
+                parameters=[{'use_sim_time': use_sim}],
+                arguments=['--session-dir', session_dir],
+            )],
         ),
     ]
 

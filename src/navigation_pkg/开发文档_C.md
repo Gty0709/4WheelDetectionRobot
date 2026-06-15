@@ -34,7 +34,14 @@ colcon build --packages-select navigation_pkg mickrobot_description perception_p
 python3 scripts/launch_navigation_terminals.py --kill-first
 ```
 
-### 手动分三个终端（依次启动，间隔约 6s）
+### 手动分三个终端（Gazebo → 等 6s → 终端 2 → **等 25–30s** → 终端 3）
+
+**启动前**（全量重启推荐 `bash scripts/kill_sim.sh`；仅重启终端 2 时 launch 会**自动**执行 `kill_nav.sh`）：
+
+```bash
+cd /home/gty/ros2ws/robothomework20260613
+bash scripts/kill_sim.sh   # 或仅 Nav2：bash scripts/kill_nav.sh
+```
 
 **终端 1 — Gazebo 仿真**
 
@@ -45,7 +52,7 @@ ros2 launch mickrobot_description bringup_classic.launch.py \
   mapping_prior_file:=src/perception_pkg/maps/map_latest/initial_pose.yaml
 ```
 
-**终端 2 — AMCL 定位 + Nav2**（等 Gazebo 就绪后）
+**终端 2 — AMCL 定位 + Nav2**（等 Gazebo 就绪后，启动后约 **25–30s** 应出现两行 `Managed nodes are active`）
 
 ```bash
 cd /home/gty/ros2ws/robothomework20260613
@@ -55,7 +62,7 @@ ros2 launch navigation_pkg navigation_humble.launch.py \
   session_dir:=src/perception_pkg/maps/map_latest
 ```
 
-**终端 3 — RViz + 航点巡逻**（等 Nav2 active 后）
+**终端 3 — RViz + 航点巡逻**（等终端 2 **导航** lifecycle 也 active 后再开；launch 内巡逻节点已延迟 25s，仍建议看到第二行 `Managed nodes are active` 后再观察 TSP）
 
 ```bash
 cd /home/gty/ros2ws/robothomework20260613
@@ -134,6 +141,9 @@ ros2 launch navigation_pkg playback_rviz.launch.py rate:=2.0
 
 | 现象 | 处理 |
 |------|------|
+| `planner_server` / lifecycle 超时 | Nav2 已改为逐个启动 + lifecycle 延后；勿在 Gazebo 运行时让 `kill_nav.sh` 清 DDS shm；见 [`docs/NAVIGATION_TUNING.md`](../../docs/NAVIGATION_TUNING.md) §3.8 |
+| RViz 机器人白模 / `map` 帧不存在 | 僵尸 `map_server`：`kill_nav.sh` 或 `kill_stale_nav:=true`；终端 2 应有 `map_server: Configuring`→`Activating` |
+| 机器人不动 / 无 TSP 日志 | 巡逻卡在 `WAIT_NAV2`：`navigate_to_pose` 未就绪。终端 2 须出现 **两次** `Managed nodes are active`（localization + navigation）；仅 AMCL 成功不够。启动顺序：Gazebo → 等 6s → 终端 2 → **等 25–30s** → 终端 3 |
 | 代价地图 `No map received` | 确认终端 2 已启动；`ros2 lifecycle get /planner_server` 为 active；`ros2 topic echo /global_costmap/costmap --once` |
 | 不重定位 | 观察粒子云是否收敛；默认约 5s 后开始判断，先验对齐后稳定 2s 即导航 |
 | result 为空 | 巡逻启动后应有 `progress.yaml`（每 3s 刷新）；Ctrl+C / 异常退出会写入完整 `mission_summary.yaml` |

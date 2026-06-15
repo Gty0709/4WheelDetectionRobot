@@ -1,4 +1,6 @@
-# 实验基线快照：config/nav2_params_baseline_20260615.yaml（path_20260615_084352, 20/20）
+
+# Frozen baseline before experiment G (path_20260615_084352, 20/20).
+# Restore: cp nav2_params_baseline_20260615.yaml nav2_params.yaml
 bt_navigator:
   ros__parameters:
     use_sim_time: true
@@ -9,8 +11,8 @@ bt_navigator:
     default_server_timeout: 20
     wait_for_service_timeout: 1000
     action_server_result_timeout: 900.0
-    # 快速恢复 BT：去掉 5s Wait，减少顶层重试
-    default_nav_to_pose_bt_xml: "$(find-pkg-share navigation_pkg)/behavior_trees/navigate_to_pose_fast_recovery.xml"
+    # 标准 BT：规划失败/卡住时 Spin+重规划（比仅 goal 更新更稳）
+    default_nav_to_pose_bt_xml: "/opt/ros/humble/share/nav2_bt_navigator/behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml"
     navigators: ["navigate_to_pose", "navigate_through_poses"]
     navigate_to_pose:
       plugin: "nav2_bt_navigator::NavigateToPoseNavigator"
@@ -37,7 +39,7 @@ controller_server:
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
       required_movement_radius: 0.08
-      movement_time_allowance: 11.0
+      movement_time_allowance: 25.0
 
     general_goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
@@ -51,11 +53,11 @@ controller_server:
       debug_trajectory_details: false
       min_vel_x: 0.0
       min_vel_y: 0.0
-      max_vel_x: 0.26
+      max_vel_x: 0.30
       max_vel_y: 0.0
       max_vel_theta: 1.0
       min_speed_xy: 0.0
-      max_speed_xy: 0.26
+      max_speed_xy: 0.30
       min_speed_theta: 0.0
       acc_lim_x: 1.2
       acc_lim_y: 0.0
@@ -75,11 +77,11 @@ controller_server:
       short_circuit_trajectory_evaluation: true
       stateful: true
       critics: ["Oscillation", "ObstacleFootprint", "BaseObstacle", "PathAlign", "PathDist", "GoalDist"]
-      ObstacleFootprint.scale: 0.16
-      BaseObstacle.scale: 0.22
-      PathAlign.scale: 9.0
+      ObstacleFootprint.scale: 0.12
+      BaseObstacle.scale: 0.18
+      PathAlign.scale: 14.0
       PathAlign.forward_point_distance: 0.35
-      PathDist.scale: 9.0
+      PathDist.scale: 14.0
       GoalDist.scale: 18.0
       Oscillation.scale: 12.0
       Oscillation.oscillation_reset_dist: 0.10
@@ -263,7 +265,7 @@ planner_server:
       max_iterations: 1000000
       max_on_approach_iterations: 1000
       max_planning_time: 2.0
-      cost_travel_multiplier: 7.5
+      cost_travel_multiplier: 6.0
       use_final_approach_orientation: false
       smoother:
         max_iterations: 1000

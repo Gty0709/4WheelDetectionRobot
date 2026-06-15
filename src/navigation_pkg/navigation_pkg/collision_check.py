@@ -92,3 +92,43 @@ def footprint_max_cost(
             return LETHAL_COST
         worst = max(worst, c)
     return worst
+
+
+def estimate_free_heading(
+    x: float,
+    y: float,
+    yaw: float,
+    width: int,
+    height: int,
+    resolution: float,
+    origin_x: float,
+    origin_y: float,
+    data: Sequence[int],
+    footprint: Sequence[Tuple[float, float]] = DEFAULT_FOOTPRINT,
+    probe_radius: float = 0.55,
+    samples: int = 16,
+) -> float:
+    """Return map-frame heading toward lower local cost (for directed backup)."""
+    best_heading = yaw
+    best_cost = footprint_max_cost(
+        x, y, yaw, width, height, resolution, origin_x, origin_y, data, footprint
+    )
+    for i in range(samples):
+        heading = (2.0 * math.pi * i) / samples
+        px = x + probe_radius * math.cos(heading)
+        py = y + probe_radius * math.sin(heading)
+        cost = footprint_max_cost(
+            px, py, yaw, width, height, resolution, origin_x, origin_y, data, footprint
+        )
+        if cost < best_cost:
+            best_cost = cost
+            best_heading = heading
+    return best_heading
+
+
+def backup_target_yaw(current_yaw: float, free_heading: float) -> float:
+    """Yaw so BackUp (-x body) moves roughly toward free_heading in map frame."""
+    return math.atan2(
+        math.sin(free_heading - math.pi),
+        math.cos(free_heading - math.pi),
+    )

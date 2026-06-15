@@ -8,7 +8,15 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, LogInfo, OpaqueFunction
+from launch.actions import (
+    DeclareLaunchArgument,
+    ExecuteProcess,
+    IncludeLaunchDescription,
+    LogInfo,
+    OpaqueFunction,
+    SetEnvironmentVariable,
+    TimerAction,
+)
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
@@ -73,6 +81,10 @@ def _launch_setup(context, *args, **kwargs):
     rviz = LaunchConfiguration('rviz')
     log_level = LaunchConfiguration('log_level')
     start_patrol = LaunchConfiguration('start_patrol')
+    kill_stale_nav = (
+        context.perform_substitution(LaunchConfiguration('kill_stale_nav')).lower()
+        == 'true'
+    )
 
     configured_params = ParameterFile(
         RewrittenYaml(
@@ -98,8 +110,8 @@ def _launch_setup(context, *args, **kwargs):
         'waypoint_follower',
     ]
 
-    actions = []
-    actions.append(LogInfo(
+    bringup_actions = []
+    bringup_actions.append(LogInfo(
         msg=(
             f'[navigation_humble] session={session_dir} '
             f'map={map_yaml} initial_pose={initial_pose}'
@@ -120,58 +132,100 @@ def _launch_setup(context, *args, **kwargs):
             'auto_save_map': 'false',
         }.items(),
     )
-    actions.append(localization_launch)
 
-    for pkg, exe, name, node_remappings in (
+    # 逐个拉起 Nav2 节点，最后再启 lifecycle_manager，避免 configure 时 get_state 2s 超时
+    nav_base_delay = 7.0
+    nav_node_interval = 1.0
+    lifecycle_extra_delay = 6.0
+    nav_node_specs = (
         ('nav2_controller', 'controller_server', 'controller_server', nav_cmd_remappings),
         ('nav2_smoother', 'smoother_server', 'smoother_server', remappings),
         ('nav2_planner', 'planner_server', 'planner_server', remappings),
         ('nav2_behaviors', 'behavior_server', 'behavior_server', nav_cmd_remappings),
         ('nav2_bt_navigator', 'bt_navigator', 'bt_navigator', remappings),
         ('nav2_waypoint_follower', 'waypoint_follower', 'waypoint_follower', remappings),
-    ):
-        actions.append(Node(
-            package=pkg,
-            executable=exe,
-            name=name,
-            output='screen',
-            parameters=[configured_params],
-            arguments=['--ros-args', '--log-level', log_level],
-            remappings=node_remappings,
+    )
+    nav_actions = []
+    for index, (pkg, exe, name, node_remappings) in enumerate(nav_node_specs):
+        nav_actions.append(TimerAction(
+            period=nav_base_delay + index * nav_node_interval,
+            actions=[Node(
+                package=pkg,
+                executable=exe,
+                name=name,
+                output='screen',
+                parameters=[configured_params],
+                arguments=['--ros-args', '--log-level', log_level],
+                remappings=node_remappings,
+            )],
         ))
 
-    actions.append(Node(
-        package='nav2_lifecycle_manager',
-        executable='lifecycle_manager',
-        name='lifecycle_manager_navigation',
-        output='screen',
-        arguments=['--ros-args', '--log-level', log_level],
-        parameters=[
-            {'use_sim_time': use_sim_time},
-            {'autostart': autostart},
-            {'node_names': lifecycle_nodes},
+    lifecycle_delay = (
+        nav_base_delay
+        + len(nav_node_specs) * nav_node_interval
+        + lifecycle_extra_delay
+    )
+    nav_actions.append(TimerAction(
+        period=lifecycle_delay,
+        actions=[
+            LogInfo(
+                msg=(
+                    '[navigation_humble] Starting lifecycle_manager_navigation '
+                    f'(delay={lifecycle_delay:.0f}s; wait for Managed nodes are active)'
+                ),
+            ),
+            Node(
+                package='nav2_lifecycle_manager',
+                executable='lifecycle_manager',
+                name='lifecycle_manager_navigation',
+                output='screen',
+                arguments=['--ros-args', '--log-level', log_level],
+                parameters=[
+                    {'use_sim_time': use_sim_time},
+                    {'autostart': autostart},
+                    {'node_names': lifecycle_nodes},
+                    {'bond_timeout': 15.0},
+                    {'bond_respawn_max_duration': 20.0},
+                ],
+            ),
         ],
     ))
 
-    actions.append(Node(
-        condition=IfCondition(rviz),
-        package='rviz2',
-        executable='rviz2',
-        output='screen',
-        arguments=['-d', os.path.join(pkg_share, 'rviz', 'navigation.rviz')],
-        parameters=[{'use_sim_time': use_sim_time}],
-    ))
+    tail_actions = [
+        Node(
+            condition=IfCondition(rviz),
+            package='rviz2',
+            executable='rviz2',
+            output='screen',
+            arguments=['-d', os.path.join(pkg_share, 'rviz', 'navigation.rviz')],
+            parameters=[{'use_sim_time': use_sim_time}],
+        ),
+        Node(
+            condition=IfCondition(start_patrol),
+            package='navigation_pkg',
+            executable='waypoint_patrol.py',
+            output='screen',
+            parameters=[{'use_sim_time': use_sim_time}],
+            arguments=['--session-dir', session_dir],
+        ),
+    ]
 
-    actions.append(Node(
-        condition=IfCondition(start_patrol),
-        package='navigation_pkg',
-        executable='waypoint_patrol.py',
-        output='screen',
-        parameters=[{'use_sim_time': use_sim_time}],
-        arguments=['--session-dir', session_dir],
-    ))
+    # 先 AMCL（map→odom），再逐个 Nav2，最后 lifecycle_manager
+    staggered = [
+        SetEnvironmentVariable('RCUTILS_LOGGING_BUFFERED_STREAM', '1'),
+        TimerAction(period=2.0, actions=[localization_launch]),
+    ] + nav_actions + [
+        TimerAction(period=lifecycle_delay + 2.0, actions=tail_actions),
+    ]
 
-    return actions
+    if not kill_stale_nav:
+        return bringup_actions + staggered
+
+    kill_nav_script = os.path.join(_resolve_ws_root(), 'scripts', 'kill_nav.sh')
+    return [
+        ExecuteProcess(cmd=['bash', kill_nav_script], output='screen'),
+        bringup_actions[0],
+    ] + staggered
 
 
 def generate_launch_description():
@@ -201,5 +255,10 @@ def generate_launch_description():
         DeclareLaunchArgument('map_yaml_file', default_value=default_map),
         DeclareLaunchArgument('initial_pose_file', default_value=default_pose),
         DeclareLaunchArgument('waypoints_file', default_value=default_wps),
+        DeclareLaunchArgument(
+            'kill_stale_nav',
+            default_value='true',
+            description='启动前清理残留 Nav2/map_server（避免 lifecycle 失败与白模）',
+        ),
         OpaqueFunction(function=_launch_setup),
     ])

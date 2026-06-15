@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-依次在 3 个终端窗口启动航点巡逻导航流程（间隔默认 4s）。
+依次在 3 个终端窗口启动航点巡逻导航流程（间隔默认 8s；终端 3 内巡逻另延迟 25s）。
 
   1. Gazebo 仿真
-  2. AMCL 定位 + Nav2
+  2. AMCL 定位 + Nav2（约 25–30s 后应出现两次 Managed nodes are active）
   3. RViz + 航点巡逻节点
 
 用法（仓库根目录）:
@@ -137,7 +137,7 @@ def _open_tmux(steps: list[tuple[str, str]], delay: float) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description='分 3 个终端依次启动航点巡逻导航')
-    parser.add_argument('--delay', type=float, default=6.0, help='相邻终端启动间隔（秒）')
+    parser.add_argument('--delay', type=float, default=8.0, help='相邻终端启动间隔（秒）')
     parser.add_argument('--kill-first', action='store_true', help='启动前清理仿真进程')
     parser.add_argument('--tmux', action='store_true', help='使用 tmux 代替图形终端')
     args = parser.parse_args()
