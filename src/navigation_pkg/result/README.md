@@ -21,17 +21,24 @@ result/
   path_latest -> path_<ts>/
 ```
 
-## 回放（RViz 已加载地图时）
+## 回放（一键 RViz + 地图 + 机器人动画）
 
 ```bash
 source install/setup.bash
-ros2 run navigation_pkg playback_mission.py --rate 2.0
+ros2 launch navigation_pkg playback_rviz.launch.py rate:=10.0
 ```
 
-默认 `result/path_latest`。也可指定目录：
+默认 `result/path_latest`。指定任务目录：
 
 ```bash
-ros2 run navigation_pkg playback_mission.py --mission src/navigation_pkg/result/path_20260614_221324 --rate 3.0
+ros2 launch navigation_pkg playback_rviz.launch.py \
+  mission:=src/navigation_pkg/result/path_20260615_084352 rate:=5.0
+```
+
+仅发布话题（不打开 RViz / 地图）：
+
+```bash
+ros2 run navigation_pkg playback_mission.py --rate 2.0
 ```
 
 话题：

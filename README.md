@@ -232,7 +232,7 @@ map -- slam_toolbox --> odom -- ekf_filter_node --> base_footprint -- robot_stat
 
 ![图5：航点巡逻任务轨迹 path_20260615_001514](docs/screenshots/fig5-mission-trajectory.png)
 
-> 本地 `src/navigation_pkg/result/path_*` 默认不上传 GitHub；`path_latest` 指向最近一次，可用 `playback_mission.py` 在 RViz 中回放。
+> 本地 `src/navigation_pkg/result/path_*` 默认不上传 GitHub；`path_latest` 指向最近一次，可用 `playback_rviz.launch.py` 在 RViz 中回放。
 
 ## 快速开始（本机 Ubuntu 22.04）
 
@@ -517,8 +517,10 @@ ros2 launch navigation_pkg patrol_rviz.launch.py session_dir:=${SESSION}
 ### 任务回放与补点
 
 ```bash
-ros2 run navigation_pkg playback_mission.py --rate 2.0
+ros2 launch navigation_pkg playback_rviz.launch.py rate:=10.0
 ```
+
+会同时启动 **map_server**、**机器人模型**、**RViz** 与轨迹动画（默认 `path_latest`）；**播完后自动关闭** RViz 与全部回放进程。循环播放加 `loop:=true`。
 
 主 TSP 循环中导航重试耗尽时，航点会**延后**到 sweep 补访（默认 4 轮、接近容差 0.55 m、每点 6 次重试），而不是直接跳过结束任务。仍失败时可手动补点（Nav2 须在终端 2 运行）：
 

@@ -125,7 +125,7 @@ RViz：`Global Plan` 红、`Traveled Path` 绿（`/navigation/driven_path`）。
 
 ```bash
 source install/setup.bash
-ros2 run navigation_pkg playback_mission.py --rate 2.0
+ros2 launch navigation_pkg playback_rviz.launch.py rate:=2.0
 ```
 
 默认回放 `result/path_latest`。
