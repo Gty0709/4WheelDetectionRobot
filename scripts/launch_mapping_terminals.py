@@ -7,6 +7,7 @@
 
 用法（仓库根目录）:
   python3 scripts/launch_mapping_terminals.py
+  python3 scripts/launch_mapping_terminals.py --cpp          # C++ 节点
   python3 scripts/launch_mapping_terminals.py --delay 3 --kill-first
 
 指定终端模拟器:
@@ -28,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ENV_SCRIPT = ROOT / 'env_humble.bash'
 KILL_SCRIPT = ROOT / 'scripts' / 'kill_sim.sh'
 
-STEPS = [
+STEPS_PYTHON = [
     (
         '1-SLAM',
         'ros2 launch perception_pkg humble_sim_slam.launch.py',
@@ -44,6 +45,25 @@ STEPS = [
     (
         '4-Detection',
         'ros2 launch detection_pkg detection.launch.py',
+    ),
+]
+
+STEPS_CPP = [
+    (
+        '1-SLAM-cpp',
+        'ros2 launch perception_pkg humble_sim_slam_cpp.launch.py',
+    ),
+    (
+        '2-RViz-cpp',
+        'ros2 launch perception_pkg rviz_slam_cpp.launch.py',
+    ),
+    (
+        '3-Teleop-cpp',
+        'ros2 launch perception_pkg teleop_slider_cpp.launch.py',
+    ),
+    (
+        '4-Detection-cpp',
+        'ros2 launch detection_pkg detection_cpp.launch.py',
     ),
 ]
 
@@ -146,7 +166,13 @@ def main() -> int:
         '--tmux', action='store_true',
         help='强制使用 tmux（4 个窗口）而非图形终端',
     )
+    parser.add_argument(
+        '--cpp', action='store_true',
+        help='使用 C++ launch（*_cpp.launch.py / clip_detector_cpp）',
+    )
     args = parser.parse_args()
+
+    steps = STEPS_CPP if args.cpp else STEPS_PYTHON
 
     if not ENV_SCRIPT.is_file():
         print(f'[launch_mapping] 缺少 {ENV_SCRIPT}', file=sys.stderr)
@@ -160,17 +186,17 @@ def main() -> int:
             print('[launch_mapping] 警告: 未找到 kill_sim.sh', file=sys.stderr)
 
     if args.tmux:
-        _open_tmux(STEPS, args.delay)
+        _open_tmux(steps, args.delay)
         return 0
 
     terminal = _detect_terminal()
     if terminal is None:
         print('[launch_mapping] 未检测到 gnome-terminal/konsole 等，改用 tmux…')
-        _open_tmux(STEPS, args.delay)
+        _open_tmux(steps, args.delay)
         return 0
 
     print(f'[launch_mapping] 使用终端: {terminal}，间隔 {args.delay}s')
-    for idx, (title, cmd) in enumerate(STEPS):
+    for idx, (title, cmd) in enumerate(steps):
         if idx > 0:
             time.sleep(args.delay)
         _open_terminal(terminal, title, cmd)

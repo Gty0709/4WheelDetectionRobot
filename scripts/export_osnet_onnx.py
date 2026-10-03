@@ -14,10 +14,10 @@ class OSNetAINx025(nn.Module):
     def __init__(self):
         super().__init__()
         try:
-            from torchreid.models import osnet_ain_x0_25
-            self.backbone = osnet_ain_x0_25(num_classes=1000, pretrained=True)
+            from torchreid.reid.models import osnet_ain_x0_25
         except ImportError:
-            raise ImportError("torchreid not installed. Run: pip install torchreid")
+            from torchreid.models import osnet_ain_x0_25
+        self.backbone = osnet_ain_x0_25(num_classes=1000, pretrained=True)
 
     def forward(self, x):
         return self.backbone(x)
@@ -39,7 +39,6 @@ def export_osnet_onnx(output_path: str, opset: int = 17) -> Path:
         opset_version=opset,
         input_names=["input"],
         output_names=["output"],
-        dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
     )
     print(f"OSNet ONNX exported: {out}")
     return out

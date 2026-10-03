@@ -4,21 +4,28 @@
   <name>detection_pkg</name>
   <version>0.2.0</version>
   <description>
-    YOLO26 目标检测：训练、实时检测、双目反投影航点。
+    YOLO26 目标检测：训练、实时检测、双目反投影航点（Python + C++/TensorRT）。
   </description>
   <maintainer email="maintainer@todo.com">mickrobot-team</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <depend>tf2_ros</depend>
+  <depend>message_filters</depend>
+  <depend>ament_index_cpp</depend>
+  <depend>yaml-cpp</depend>
+  <depend>libopencv-dev</depend>
 
   <exec_depend>rclpy</exec_depend>
-  <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>vision_msgs</exec_depend>
-  <exec_depend>geometry_msgs</exec_depend>
-  <exec_depend>visualization_msgs</exec_depend>
-  <exec_depend>std_msgs</exec_depend>
-  <exec_depend>tf2_ros</exec_depend>
-  <exec_depend>message_filters</exec_depend>
   <exec_depend>ament_index_python</exec_depend>
 
   <export>

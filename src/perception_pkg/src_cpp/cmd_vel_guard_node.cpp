@@ -93,13 +93,7 @@ int main(int argc, char ** argv)
   rclcpp::init(argc, argv);
   auto node = std::make_shared<perception_pkg::CmdVelGuard>();
   rclcpp::spin(node);
-  // Publish zero burst on shutdown
-  try {
-    auto zero = geometry_msgs::msg::Twist();
-    for (int i = 0; i < 10; ++i) {
-      node->out_pub_->publish(zero);
-    }
-  } catch (...) {}
+  // Publish zero burst on shutdown - node destructor will handle it
   node.reset();
   rclcpp::shutdown();
   return 0;

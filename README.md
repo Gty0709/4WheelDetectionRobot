@@ -250,12 +250,12 @@ source env_humble.bash
 
 启动后终端 1 会创建 `maps/map_<时间戳>/` 并将 **`map_latest` 指向本次会话**；终端 4 可直接用 `map_latest`，无需抄时间戳。
 
-| 终端 | 作用 | Launch |
-|------|------|--------|
-| **1** | 仿真 + SLAM + 录包 | `humble_sim_slam.launch.py` |
-| **2** | RViz（地图/激光/检测图/航点） | `rviz_slam.launch.py` |
-| **3** | 滑条遥控 | `teleop_slider.launch.py` |
-| **4** | YOLO 检测 + 航点反投影 | `detection_pkg detection.launch.py` |
+| 终端 | 作用 | Python Launch | C++ Launch |
+|------|------|---------------|------------|
+| **1** | 仿真 + SLAM + 录包 | `humble_sim_slam.launch.py` | `humble_sim_slam_cpp.launch.py` |
+| **2** | RViz（地图/激光/检测图/航点） | `rviz_slam.launch.py` | `rviz_slam_cpp.launch.py` |
+| **3** | 滑条遥控 | `teleop_slider.launch.py` | `teleop_slider_cpp.launch.py` |
+| **4** | YOLO 检测 + 航点反投影 | `detection_pkg detection.launch.py` | `detection_pkg detection_cpp.launch.py` |
 
 地图输出到 `src/perception_pkg/maps/map_<时间戳>/`：
 
@@ -280,7 +280,9 @@ ros2 launch perception_pkg perception_humble.launch.py use_sim:=true mode:=local
 
 #### 方式一：一键启动 4 终端
 
-每隔 2s 依次打开上表四个窗口，自动 `source env_humble.bash`：
+每隔 2s 依次打开四个窗口，自动 `source env_humble.bash`。
+
+**Python（Ultralytics 检测 + Python 感知节点）**
 
 ```bash
 python3 scripts/launch_mapping_terminals.py
@@ -293,9 +295,26 @@ python3 scripts/launch_mapping_terminals.py --delay 3
 python3 scripts/launch_mapping_terminals.py --tmux
 ```
 
-指定终端模拟器：`TERMINAL=gnome-terminal python3 scripts/launch_mapping_terminals.py`
+**C++（TensorRT 检测 + C++ 感知节点）**
+
+```bash
+# 先编译 C++（含 TensorRT）
+colcon build --packages-select perception_pkg navigation_pkg detection_pkg \
+  --cmake-args -DCMAKE_BUILD_TYPE=Release -DUSE_TENSORRT=ON
+source install/setup.bash
+
+python3 scripts/launch_mapping_terminals.py --cpp
+
+# 同上可选参数
+python3 scripts/launch_mapping_terminals.py --cpp --kill-first
+python3 scripts/launch_mapping_terminals.py --cpp --delay 3 --tmux
+```
+
+指定终端模拟器：`TERMINAL=gnome-terminal python3 scripts/launch_mapping_terminals.py`（加 `--cpp` 即走 C++ 流程）
 
 #### 方式二：分终端启动
+
+**Python**
 
 **终端 1** — 仿真 + SLAM + **录包**（默认 `record_bag:=true`）：
 
@@ -305,23 +324,71 @@ ros2 launch perception_pkg humble_sim_slam.launch.py
 # SSH / headless：gui:=false
 ```
 
-录包输出：`src/perception_pkg/maps/map_<时间戳>/bag/`。
-
-**结束建图（Ctrl+C 顺序建议）：**
-
-1. **终端 4** 检测 — Ctrl+C（自动存 `waypoints.yaml` + `slam_map_waypoints.png`）
-2. **终端 1** `humble_sim_slam` — Ctrl+C（存 `slam_map.*`；`initial_pose.yaml` 建图过程中已每秒更新）
-3. 终端 2 RViz / 终端 3 遥控 — 随时 Ctrl+C
-
-> 若先停终端 1 再停终端 4，航点需在终端 4 退出时自行保存（已支持）。`initial_pose.yaml` 在 SLAM 运行期间会持续写入，不依赖退出瞬间的 TF。
-
-**终端 2** — RViz（双窗口，避免 segfault；均需 `use_sim_time`）：
+**终端 2** — RViz（双窗口；均需 `use_sim_time`）：
 
 ```bash
 source env_humble.bash
 ros2 launch perception_pkg rviz_slam.launch.py
 # 仅建图窗口：with_detection:=false
 ```
+
+**终端 3** — 滑条遥控（关闭窗口会调用 `save_map` 服务）：
+
+```bash
+source env_humble.bash
+ros2 launch perception_pkg teleop_slider.launch.py
+```
+
+**终端 4** — YOLO 检测 + 双目反投影（须**先**启动终端 1）：
+
+```bash
+source env_humble.bash
+ros2 launch detection_pkg detection.launch.py
+# 默认 session_dir 已指向 map_latest
+```
+
+**C++**
+
+**终端 1** — 仿真 + SLAM + 录包（C++ `odom_to_tf` / `save_map_snapshot` 等）：
+
+```bash
+source env_humble.bash
+source install/setup.bash
+ros2 launch perception_pkg humble_sim_slam_cpp.launch.py
+# SSH / headless：gui:=false
+```
+
+**终端 2** — RViz（配置与 Python 相同）：
+
+```bash
+source env_humble.bash
+ros2 launch perception_pkg rviz_slam_cpp.launch.py
+# 仅建图窗口：with_detection:=false
+```
+
+**终端 3** — 滑条遥控（默认 tkinter GUI；SSH 无图形界面用 `interface:=terminal`）：
+
+```bash
+source env_humble.bash
+ros2 launch perception_pkg teleop_slider_cpp.launch.py
+```
+
+**终端 4** — TensorRT 检测 + 反投影（`clip_detector_cpp`）：
+
+```bash
+source env_humble.bash
+ros2 launch detection_pkg detection_cpp.launch.py
+```
+
+录包输出：`src/perception_pkg/maps/map_<时间戳>/bag/`。
+
+**结束建图（Ctrl+C 顺序建议，Python / C++ 相同）：**
+
+1. **终端 4** 检测 — Ctrl+C（自动存 `waypoints.yaml` + `slam_map_waypoints.png`）
+2. **终端 1** `humble_sim_slam` — Ctrl+C（存 `slam_map.*`；`initial_pose.yaml` 建图过程中已每秒更新）
+3. 终端 2 RViz / 终端 3 遥控 — 随时 Ctrl+C
+
+> 若先停终端 1 再停终端 4，航点需在终端 4 退出时自行保存（已支持）。`initial_pose.yaml` 在 SLAM 运行期间会持续写入，不依赖退出瞬间的 TF。
 
 | 窗口 | 配置 | 内容 |
 |------|------|------|
@@ -330,33 +397,21 @@ ros2 launch perception_pkg rviz_slam.launch.py
 
 > `slam_classic.rviz` **不能**内嵌 Image 显示（本机 RViz 会 exit -11）。检测单独窗口。
 
-**终端 3** — 滑条遥控（关闭窗口或点「保存地图」会调用 `save_map` 服务）：
-
-```bash
-source env_humble.bash
-ros2 launch perception_pkg teleop_slider.launch.py
-```
-
-**终端 4** — 目标检测 + 双目反投影（须**先**启动终端 1，再启 detection）：
-
-```bash
-source env_humble.bash
-ros2 launch detection_pkg detection.launch.py
-# 等价于（默认已指向 map_latest）：
-# ros2 launch detection_pkg detection.launch.py \
-#   session_dir:=src/perception_pkg/maps/map_latest
-```
-
 > **`session_dir` 默认 `map_latest`**：终端 1 启动时会自动把符号链接指到本次 `map_<时间戳>`。若未先启终端 1 就启 detection，航点可能写入**上一次**会话。
 
 修改代码后请先编译：
 
 ```bash
+# Python 节点
 colcon build --packages-select detection_pkg perception_pkg --allow-overriding perception_pkg
+
+# C++ 节点（含 TensorRT 检测）
+colcon build --packages-select perception_pkg navigation_pkg detection_pkg \
+  --cmake-args -DCMAKE_BUILD_TYPE=Release -DUSE_TENSORRT=ON
 source install/setup.bash
 ```
 
-首次使用需创建**轻量隔离层**（仅需一次）：
+首次使用需创建**轻量隔离层**（仅需一次，**仅 Python 检测路径需要**）：
 
 ```bash
 bash scripts/setup_detection_venv.sh
@@ -444,17 +499,19 @@ python3 scripts/analyze_mapping_session.py src/perception_pkg/maps/map_<时间�
 
 **需要模块 A 仿真**：Gazebo 按 `initial_pose.yaml` **prior spawn**（与建图终止位姿一致）；AMCL 在此基础上重定位，Nav2 读取静态地图与检测航点执行 TSP 巡逻。
 
-| 终端 | 作用 | Launch |
-|------|------|--------|
-| **1** | Gazebo 仿真 | `bringup_classic.launch.py` |
-| **2** | AMCL 重定位 + Nav2 | `navigation_humble.launch.py` |
-| **3** | RViz + 航点巡逻 | `patrol_rviz.launch.py` |
+| 终端 | 作用 | Python Launch | C++ Launch |
+|------|------|---------------|------------|
+| **1** | Gazebo 仿真 | `bringup_classic.launch.py` | 同左（无 C++ 变更） |
+| **2** | AMCL 重定位 + Nav2 | `navigation_humble.launch.py` | `navigation_humble_cpp.launch.py` |
+| **3** | RViz + 航点巡逻 | `patrol_rviz.launch.py` | `patrol_rviz_cpp.launch.py` |
 
 任务结果写入 `src/navigation_pkg/result/path_<时间戳>/`（`path_latest` 指向最近一次；**不上传 GitHub**）。
 
 #### 方式一：一键启动 3 终端
 
-每隔 **8s** 依次打开上表三个窗口，自动 `source env_humble.bash`（终端 3 内巡逻节点另延迟 25s 启动，以等待 Nav2 lifecycle）：
+每隔 **8s** 依次打开三个窗口，自动 `source env_humble.bash`（终端 3 内巡逻节点另延迟 25s，等待 Nav2 lifecycle）。
+
+**Python**
 
 ```bash
 source env_humble.bash
@@ -470,7 +527,21 @@ python3 scripts/launch_navigation_terminals.py --delay 10
 python3 scripts/launch_navigation_terminals.py --tmux
 ```
 
-指定终端模拟器：`TERMINAL=gnome-terminal python3 scripts/launch_navigation_terminals.py`
+**C++**
+
+```bash
+source env_humble.bash
+colcon build --packages-select navigation_pkg perception_pkg \
+  --cmake-args -DCMAKE_BUILD_TYPE=Release
+source install/setup.bash
+
+python3 scripts/launch_navigation_terminals.py --cpp
+
+python3 scripts/launch_navigation_terminals.py --cpp --kill-first
+python3 scripts/launch_navigation_terminals.py --cpp --delay 10 --tmux
+```
+
+指定终端模拟器：`TERMINAL=gnome-terminal python3 scripts/launch_navigation_terminals.py`（加 `--cpp` 即走 C++ 巡逻）
 
 **流程**：AMCL 用 `initial_pose.yaml` 重定位 → Held-Karp 曼哈顿 TSP → 逐点 Nav2 导航并驻留 **0.75 s**；RViz **红球**未访问、**绿球**已驻留。
 
@@ -481,6 +552,8 @@ python3 scripts/launch_navigation_terminals.py --tmux
 默认会话目录 `SESSION=src/perception_pkg/maps/map_latest`；换成其他建图结果时改三处 `session_dir` / `mapping_prior_file` 即可。
 
 **启动前**（全量重启）：`bash scripts/kill_sim.sh`（仅重启 Nav2 时终端 2 launch 会自动执行 `kill_nav.sh`）。
+
+**Python**
 
 **终端 1** — Gazebo 仿真（须**最先**启动）：
 
@@ -493,7 +566,7 @@ ros2 launch mickrobot_description bringup_classic.launch.py \
 # SSH / headless：gui:=false
 ```
 
-**终端 2** — AMCL + Nav2（等 Gazebo spawn 完成后再启，约 6 s；启动后约 **25–30 s** 应出现**两行** `Managed nodes are active`）：
+**终端 2** — AMCL + Nav2（等 Gazebo spawn 后再启，约 6 s；约 **25–30 s** 出现两行 `Managed nodes are active`）：
 
 ```bash
 source env_humble.bash
@@ -503,13 +576,45 @@ ros2 launch navigation_pkg navigation_humble.launch.py \
   start_patrol:=false rviz:=false session_dir:=${SESSION}
 ```
 
-**终端 3** — RViz + 航点巡逻（等终端 2 **导航** lifecycle 也 active 后再启；`patrol_rviz` 内巡逻节点已延迟 25 s）：
+**终端 3** — RViz + 航点巡逻（`patrol_rviz` 内巡逻节点已延迟 25 s）：
 
 ```bash
 source env_humble.bash
 SESSION=src/perception_pkg/maps/map_latest
 
 ros2 launch navigation_pkg patrol_rviz.launch.py session_dir:=${SESSION}
+```
+
+**C++**
+
+**终端 1** — Gazebo 仿真（与 Python 相同，无 C++ 变更）：
+
+```bash
+source env_humble.bash
+SESSION=src/perception_pkg/maps/map_latest
+
+ros2 launch mickrobot_description bringup_classic.launch.py \
+  mapping_prior_file:=${SESSION}/initial_pose.yaml
+```
+
+**终端 2** — AMCL + Nav2（`start_patrol:=true` 时启 `waypoint_patrol_cpp`）：
+
+```bash
+source env_humble.bash
+source install/setup.bash
+SESSION=src/perception_pkg/maps/map_latest
+
+ros2 launch navigation_pkg navigation_humble_cpp.launch.py \
+  start_patrol:=false rviz:=false session_dir:=${SESSION}
+```
+
+**终端 3** — RViz + C++ 航点巡逻（`waypoint_patrol_cpp`）：
+
+```bash
+source env_humble.bash
+SESSION=src/perception_pkg/maps/map_latest
+
+ros2 launch navigation_pkg patrol_rviz_cpp.launch.py session_dir:=${SESSION}
 ```
 
 **结束任务（Ctrl+C 顺序建议）：**
@@ -520,20 +625,74 @@ ros2 launch navigation_pkg patrol_rviz.launch.py session_dir:=${SESSION}
 
 ### 任务回放与补点
 
+**Python**
+
 ```bash
 ros2 launch navigation_pkg playback_rviz.launch.py rate:=10.0
-```
-
-会同时启动 **map_server**、**机器人模型**、**RViz** 与轨迹动画（默认 `path_latest`）；**播完后自动关闭** RViz 与全部回放进程。循环播放加 `loop:=true`。
-
-主 TSP 循环中导航重试耗尽时，航点会**延后**到 sweep 补访（默认 4 轮、接近容差 0.55 m、每点 6 次重试），而不是直接跳过结束任务。仍失败时可手动补点（Nav2 须在终端 2 运行）：
-
-```bash
 ros2 run navigation_pkg send_goal.py -2.9976 -1.5102 0   # id=4
 ros2 run navigation_pkg send_goal.py -4.2137 -2.7961 0   # id=8
 ```
 
+**C++**
+
+```bash
+ros2 launch navigation_pkg playback_rviz_cpp.launch.py rate:=10.0
+ros2 run navigation_pkg send_goal_cpp -2.9976 -1.5102 0
+ros2 run navigation_pkg send_goal_cpp -4.2137 -2.7961 0
+```
+
+会同时启动 **map_server**、**机器人模型**、**RViz** 与轨迹动画（默认 `path_latest`）；**播完后自动关闭** RViz 与全部回放进程。循环播放加 `loop:=true`。
+
+主 TSP 循环中导航重试耗尽时，航点会**延后**到 sweep 补访（默认 4 轮、接近容差 0.55 m、每点 6 次重试），而不是直接跳过结束任务。仍失败时可手动补点（Nav2 须在终端 2 运行）。
+
 详见 [`src/navigation_pkg/开发文档_C.md`](src/navigation_pkg/开发文档_C.md)、[`docs/NAVIGATION_TUNING.md`](docs/NAVIGATION_TUNING.md) 与 [`src/navigation_pkg/result/README.md`](src/navigation_pkg/result/README.md)。
+
+---
+
+## C++ 实现与 TensorRT（与 Python 并存）
+
+Python 节点**保持不变**；C++ 可执行文件与 `*_cpp.launch.py` 与之并行，逻辑对齐。
+
+### 编译
+
+```bash
+source /opt/ros/humble/setup.bash
+cd /home/gty/ros2ws/robothomework20260613
+
+colcon build --packages-select perception_pkg navigation_pkg detection_pkg \
+  --cmake-args -DCMAKE_BUILD_TYPE=Release -DUSE_TENSORRT=ON
+source install/setup.bash
+
+# 单元测试（navigation_pkg TSP / 碰撞检测）
+colcon test --packages-select navigation_pkg
+colcon test-result --verbose
+```
+
+| 包 | C++ 可执行文件（节选） |
+|----|------------------------|
+| `perception_pkg` | `odom_to_tf_cpp`, `cmd_vel_guard_cpp`, `save_map_snapshot_cpp`, `slider_teleop_cpp`, `auto_explore_cpp`, `patrol_mapper_cpp` |
+| `navigation_pkg` | `waypoint_patrol_cpp`, `send_goal_cpp`, `playback_mission_cpp` |
+| `detection_pkg` | `clip_detector_cpp`（TensorRT YOLO + ORB/OSNet ReID） |
+
+### YOLO / OSNet → TensorRT 模型转换
+
+```bash
+# 1) 导出 ONNX（需 ultralytics / torchreid 环境）
+python3 scripts/export_yolo_onnx.py
+python3 scripts/export_osnet_onnx.py
+
+# 2) ONNX → TensorRT engine（一次性离线转换；无 trtexec 时用 C++ build_trt_engines）
+bash scripts/build_all_trt_engines.sh
+# 或仅转换已有 ONNX：
+# bash scripts/convert_to_trt_engine.sh
+
+# 3) 校验检测一致性（Ultralytics vs ONNX/OpenCV DNN）
+python3 scripts/validate_trt_inference.py
+```
+
+产物目录：`src/detection_pkg/simmodel/`（`best.onnx`, `best.engine`, `osnet_ain_x0_25.onnx`, `osnet_ain_x0_25.engine`）。`colcon build` 会同步到 `install/.../simmodel/`。
+
+> **说明**：engine 需预先构建，节点启动时只加载 `.engine`（不再运行时 ONNX→TRT）。无 `best.engine` 时 `detection_cpp.launch.py` 回退 Python YOLO；无 OSNet engine 时 ReID 降级 ORB BoW。
 
 ---
 
@@ -587,9 +746,10 @@ URDF/xacro 文件：
 | `mickrobot_ugv_classic.urdf.xacro` | Classic Gazebo 插件（libgazebo_ros_*） |
 | `worlds/small_house.world` | Classic 格式室内世界 |
 | `perception_humble.launch.py` | 本机 SLAM/定位 |
-| `humble_sim_slam.launch.py` | 一键仿真+SLAM |
-| `rviz_slam.launch.py` + `slam_classic.rviz` | 建图 RViz（含检测 Image/MarkerArray） |
-| `detection.launch.py` + `clip_detector_wrapper.sh` | 模块 E 检测节点 + ORB BoW 重识别 |
+| `humble_sim_slam.launch.py` / `humble_sim_slam_cpp.launch.py` | 一键仿真+SLAM |
+| `rviz_slam.launch.py` / `rviz_slam_cpp.launch.py` + `slam_classic.rviz` | 建图 RViz |
+| `detection.launch.py` / `detection_cpp.launch.py` | 模块 E 检测（Python Ultralytics / C++ TensorRT） |
+| `navigation_humble_cpp.launch.py` / `patrol_rviz_cpp.launch.py` | 模块 C C++ 航点巡逻 |
 | `detection_pkg/embedding_reid.py` | OSNet 深度 ReID（ORB fallback） |
 | `detection_pkg/waypoint_track.py` | 1σ 深度融合与轨迹缓冲 |
 | `detection_pkg/waypoint_reid.py` | ORB 词袋 fallback 重识别 |

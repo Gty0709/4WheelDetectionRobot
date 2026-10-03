@@ -8,6 +8,7 @@
 
 用法（仓库根目录）:
   python3 scripts/launch_navigation_terminals.py
+  python3 scripts/launch_navigation_terminals.py --cpp       # C++ 巡逻节点
   python3 scripts/launch_navigation_terminals.py --kill-first --delay 5
 """
 
@@ -27,7 +28,7 @@ ENV_SCRIPT = ROOT / 'env_humble.bash'
 KILL_SCRIPT = ROOT / 'scripts' / 'kill_sim.sh'
 SESSION = 'src/perception_pkg/maps/map_latest'
 
-STEPS = [
+STEPS_PYTHON = [
     (
         '1-Sim',
         (
@@ -47,6 +48,31 @@ STEPS = [
         '3-Patrol+RViz',
         (
             f'ros2 launch navigation_pkg patrol_rviz.launch.py '
+            f'session_dir:={SESSION}'
+        ),
+    ),
+]
+
+STEPS_CPP = [
+    (
+        '1-Sim',
+        (
+            'ros2 launch mickrobot_description bringup_classic.launch.py '
+            f'mapping_prior_file:={SESSION}/initial_pose.yaml'
+        ),
+    ),
+    (
+        '2-Localize+Nav2-cpp',
+        (
+            f'ros2 launch navigation_pkg navigation_humble_cpp.launch.py '
+            f'start_patrol:=false rviz:=false '
+            f'session_dir:={SESSION}'
+        ),
+    ),
+    (
+        '3-Patrol+RViz-cpp',
+        (
+            f'ros2 launch navigation_pkg patrol_rviz_cpp.launch.py '
             f'session_dir:={SESSION}'
         ),
     ),
@@ -140,24 +166,30 @@ def main() -> int:
     parser.add_argument('--delay', type=float, default=8.0, help='相邻终端启动间隔（秒）')
     parser.add_argument('--kill-first', action='store_true', help='启动前清理仿真进程')
     parser.add_argument('--tmux', action='store_true', help='使用 tmux 代替图形终端')
+    parser.add_argument(
+        '--cpp', action='store_true',
+        help='使用 C++ launch（navigation_humble_cpp / patrol_rviz_cpp）',
+    )
     args = parser.parse_args()
+
+    steps = STEPS_CPP if args.cpp else STEPS_PYTHON
 
     if args.kill_first and KILL_SCRIPT.is_file():
         print('[launch_navigation] 清理仿真进程...')
         subprocess.run(['bash', str(KILL_SCRIPT)], cwd=str(ROOT), check=False)
 
     if args.tmux:
-        _open_tmux(STEPS, args.delay)
+        _open_tmux(steps, args.delay)
         return 0
 
     terminal = _detect_terminal()
     if terminal is None:
         print('[launch_navigation] 未找到图形终端，尝试 tmux...')
-        _open_tmux(STEPS, args.delay)
+        _open_tmux(steps, args.delay)
         return 0
 
     procs: list[subprocess.Popen] = []
-    for idx, (title, cmd) in enumerate(STEPS):
+    for idx, (title, cmd) in enumerate(steps):
         if idx > 0:
             time.sleep(args.delay)
         print(f'[launch_navigation] 启动 {idx + 1}/3: {title}')

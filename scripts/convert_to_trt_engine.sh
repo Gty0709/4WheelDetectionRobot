@@ -23,8 +23,19 @@ for candidate in /usr/local/cuda/bin/trtexec /usr/bin/trtexec; do
     fi
 done
 if [ -z "$TRTEXEC" ]; then
-    echo "ERROR: trtexec not found. Install TensorRT tools."
-    exit 1
+    echo "trtexec not found; falling back to build_trt_engines"
+    export ROBOTHOMEWORK_WS="$WS_ROOT"
+    source /opt/ros/humble/setup.bash 2>/dev/null || true
+    if [ -f "$WS_ROOT/install/setup.bash" ]; then
+        source "$WS_ROOT/install/setup.bash"
+    fi
+    BUILDER="$WS_ROOT/install/detection_pkg/lib/detection_pkg/build_trt_engines"
+    if [ ! -x "$BUILDER" ]; then
+        echo "ERROR: $BUILDER not found. Build with:"
+        echo "  colcon build --packages-select detection_pkg --cmake-args -DUSE_TENSORRT=ON"
+        exit 1
+    fi
+    exec "$BUILDER" --all
 fi
 
 convert_model() {

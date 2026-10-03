@@ -87,6 +87,8 @@ def _setup(context, *args, **kwargs):
             'world': world,
             'gui': gui,
             'launch_rviz': 'false',
+            # 新建图会话尚无 initial_pose.yaml，不能用 prior spawn
+            'spawn_mode': 'fixed',
         }.items(),
     )
 
